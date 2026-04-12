@@ -1,7 +1,7 @@
 <div class="cart-overlay" id="cartOverlay"></div>
-
+ 
 <aside class="cart-panel" id="cartPanel">
-
+ 
   <!-- Header -->
   <div class="cart-panel-header">
     <div class="cart-panel-title">
@@ -18,7 +18,7 @@
       </svg>
     </button>
   </div>
-
+ 
   <!-- Items list -->
   <div class="cart-panel-body" id="cartPanelBody">
     <!-- Empty state -->
@@ -30,11 +30,11 @@
       <p>Your cart is empty</p>
       <span>Add some products to get started</span>
     </div>
-
+ 
     <!-- Cart items will be injected here by JS -->
     <div id="cartItemsList"></div>
   </div>
-
+ 
   <!-- Footer -->
   <div class="cart-panel-footer" id="cartPanelFooter" style="display:none;">
     <div class="cart-total-row">
@@ -43,5 +43,5 @@
     </div>
     <button class="cart-checkout-btn" id="cartCheckoutBtn">Checkout</button>
   </div>
-
+ 
 </aside>
