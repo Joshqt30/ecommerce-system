@@ -1,0 +1,105 @@
+body {
+  font-family: 'Inter', sans-serif;
+  background: #f3f3f3;
+}
+
+.checkout-container {
+  display: flex;
+  gap: 30px;
+  padding: 40px;
+}
+
+/* LEFT */
+.order-summary {
+  width: 35%;
+  background: #fff;
+  padding: 20px;
+}
+
+.product {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.product img {
+  width: 80px;
+}
+
+.qty-control {
+  display: flex;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.qty-control button {
+  width: 25px;
+}
+
+.discount {
+  display: flex;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.discount input {
+  flex: 1;
+}
+
+.totals div {
+  display: flex;
+  justify-content: space-between;
+  margin: 10px 0;
+}
+
+.total {
+  font-weight: bold;
+  color: blue;
+}
+
+.free {
+  color: green;
+}
+
+/* RIGHT */
+.checkout-form {
+  width: 65%;
+  background: #fff;
+  padding: 30px;
+}
+
+.steps {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.steps .active {
+  color: blue;
+  font-weight: bold;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+}
+
+input {
+  width: 100%;
+  padding: 10px;
+  margin: 10px 0;
+}
+
+.checkbox {
+  display: flex;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.continue-btn {
+  background: #6366F1;
+  color: #fff;
+  padding: 10px;
+  border: none;
+  width: 150px;
+}

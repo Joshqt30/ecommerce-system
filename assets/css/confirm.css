@@ -1,0 +1,30 @@
+.confirm-info {
+  text-align: left;
+  margin-bottom: 20px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 14px;
+}
+
+.info-row span {
+  color: #777;
+}
+
+.info-row strong {
+  color: #14181F;
+}
+
+/* Terms checkbox */
+.terms {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  margin-bottom: 15px;
+  color: #555;
+}

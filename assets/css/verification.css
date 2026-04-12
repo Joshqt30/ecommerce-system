@@ -1,0 +1,29 @@
+.verify-text {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 20px;
+}
+
+/* OTP container */
+.otp-inputs {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+/* Each box */
+.otp-inputs input {
+  width: 40px;
+  height: 45px;
+  text-align: center;
+  font-size: 18px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+}
+
+/* Focus effect */
+.otp-inputs input:focus {
+  border-color: #6366F1;
+  outline: none;
+}
