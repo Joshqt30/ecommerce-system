@@ -40,14 +40,13 @@ const CartPanel = (() => {
 
     if (!panel) return; // panel not present on this page
 
-    // Open panel when any .cart-btn or #cartBtn is clicked
-    document.querySelectorAll('.cart-btn, #cartBtn').forEach(btn => {
+       // Open panel when cart button is clicked (fixed selector)
+    document.querySelectorAll('.cart-btn, #navCart').forEach(btn => {
       btn.addEventListener('click', e => {
         e.preventDefault();
         open();
       });
     });
-
     // Close
     closeBtn.addEventListener('click', close);
     overlay.addEventListener('click', close);
@@ -77,9 +76,11 @@ const CartPanel = (() => {
     document.body.style.overflow = '';
   }
 
-  // ── Add item (public API) ─────────────────────────────
-  // Call this from any page: CartPanel.addItem({ id, name, price, image })
+   // ── Add item (public API) ─────────────────────────────
   function addItem(product) {
+    // Safety: make sure init has run
+    if (!panel) init();
+
     const existing = items.find(i => i.id === product.id);
     if (existing) {
       existing.qty++;
@@ -88,7 +89,7 @@ const CartPanel = (() => {
     }
     render();
     syncNavBadge();
-    open();
+    open();           // This forces the panel to open when item is added
   }
 
   // ── Remove item ───────────────────────────────────────

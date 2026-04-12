@@ -1,0 +1,130 @@
+/* ── Header ─────────────────────────────────────────── */
+.header {
+  background: #ffffff;
+  border-bottom: 1px rgba(0,0,0,0.06);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 30px;
+}
+
+.logo-wrap {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 20px;
+  border: 2px solid rgba(0,0,0,0.05);
+  border-radius: 20px;
+  text-decoration: none;
+}
+
+.logo-icon {
+  width: 19px;
+  height: 19px;
+}
+
+.logo-text {
+  font-size: 17px;
+  font-weight: 600;
+  color: #000000;
+  line-height: 24.2px;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.nav-links a {
+  font-size: 17px;
+  font-weight: 400;
+  color: #000000;
+  text-decoration: none;
+  line-height: 24.2px;
+}
+
+.cart-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: rgba(0,0,0,0.05);
+  border-radius: 20px;
+  text-decoration: none;
+}
+
+.cart-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.cart-text {
+  font-size: 17px;
+  font-weight: 600;
+  color: #000000;
+  line-height: 24.2px;
+}
+
+.cart-count {
+  color: #FF6C6C;
+}
+
+/* ── Search bar ─────────────────────────────────────── */
+.search-bar {
+  background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(0,0,0,0.11) 100%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  height: 100px;
+}
+
+.search-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 540px;
+  padding: 5px 5px 5px 20px;
+  border: 2px solid rgba(0,0,0,0.1);
+  border-radius: 10px;
+  background: rgba(225, 170, 170, 0.05);
+}
+
+.search-field input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+  color: rgba(0,0,0,0.5);
+  outline: none;
+}
+
+.search-field input::placeholder {
+  color: rgba(0,0,0,0.5);
+}
+
+.search-btn {
+  width: 40px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.search-btn img {
+  width: 40px;
+  height: 32px;
+}
