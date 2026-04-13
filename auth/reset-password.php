@@ -1,5 +1,4 @@
 <?php
-session_start();
 ?>
 
 <!doctype html>
@@ -13,13 +12,13 @@ session_start();
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- Your existing styles -->
-  <link rel="stylesheet" href="../assets/css/dashboard.css">
+  <link rel="stylesheet" href="../assets/css/header.css">
   <link rel="stylesheet" href="../assets/css/login.css">
 </head>
 
 <body>
 
-<!-- ── Header ── -->
+<!-- ── Header (same as dashboard but simpler) ── -->
 <header class="header">
   <div class="nav-bar">
     <a href="../index.php" class="logo-wrap">
@@ -34,6 +33,7 @@ session_start();
     </nav>
   </div>
 </header>
+
 
 <!-- ── Reset Password Section ── -->
 <div class="login-container">

@@ -1,5 +1,4 @@
 <?php
-session_start();
 
 // sample email (later dynamic)
 $email = "example@gmail.com";
@@ -14,14 +13,14 @@ $email = "example@gmail.com";
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="../assets/css/dashboard.css">
+  <link rel="stylesheet" href="../assets/css/header.css">
   <link rel="stylesheet" href="../assets/css/login.css">
   <link rel="stylesheet" href="../assets/css/verification.css">
 </head>
 
 <body>
 
-<!-- Header -->
+<!-- ── Header (same as dashboard but simpler) ── -->
 <header class="header">
   <div class="nav-bar">
     <a href="../index.php" class="logo-wrap">
@@ -36,6 +35,7 @@ $email = "example@gmail.com";
     </nav>
   </div>
 </header>
+
 
 <!-- Verification UI -->
 <div class="login-container">

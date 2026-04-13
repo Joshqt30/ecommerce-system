@@ -1,5 +1,4 @@
 <?php
-session_start();
 ?>
 
 <!doctype html>
@@ -13,7 +12,7 @@ session_start();
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- Your existing styles -->
-  <link rel="stylesheet" href="../assets/css/dashboard.css">
+  <link rel="stylesheet" href="../assets/css/header.css">
 
   <!-- Login CSS -->
   <link rel="stylesheet" href="../assets/css/login.css">

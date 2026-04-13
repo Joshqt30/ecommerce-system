@@ -1,6 +1,4 @@
 <?php
-session_start();
-
 /* Temporary data (later from POST or SESSION) */
 $username = $_POST['username'] ?? "Juan123";
 $email = $_POST['email'] ?? "juan@email.com";
@@ -15,22 +13,29 @@ $email = $_POST['email'] ?? "juan@email.com";
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="../assets/css/dashboard.css">
+  <link rel="stylesheet" href="../assets/css/header.css">
   <link rel="stylesheet" href="../assets/css/login.css">
   <link rel="stylesheet" href="../assets/css/confirm.css">
 </head>
 
 <body>
 
-<!-- Header -->
+<!-- ── Header (same as dashboard but simpler) ── -->
 <header class="header">
   <div class="nav-bar">
     <a href="../index.php" class="logo-wrap">
       <img class="logo-icon" src="https://cdn.codia.ai/figma/DNIGD5YlSaH0gJQnZ0iH7f/img-40e47e05667e0932.png" />
       <span class="logo-text">E-Commerce</span>
     </a>
+
+    <nav class="nav-links">
+      <a href="#">About</a>
+      <a href="#">Shop</a>
+      <a href="#">Help</a>
+    </nav>
   </div>
 </header>
+
 
 <!-- Confirm UI -->
 <div class="login-container">

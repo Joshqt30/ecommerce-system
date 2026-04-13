@@ -1,4 +1,5 @@
-body { font-family: 'Inter', system-ui, sans-serif; background: #f3f4f6; }
+body { 
+  background: #f3f4f6; }
 
     /* Step connector */
     .step-line { flex: 1; height: 1px; background: #d1d5db; margin: 0 6px; }
@@ -46,7 +47,7 @@ body { font-family: 'Inter', system-ui, sans-serif; background: #f3f4f6; }
     .sub-input {
       width: 100%; padding: 10px 14px 10px 38px;
       border: 1.5px solid #e5e7eb; border-radius: 8px;
-      font-family: 'Inter', sans-serif; font-size: 13px;
+      font-size: 13px;
       outline: none; transition: border-color .18s; background: #fff;
       color: #374151;
     }
