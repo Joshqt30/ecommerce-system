@@ -30,7 +30,6 @@ $email = $_POST['email'] ?? "juan@email.com";
 
     <nav class="nav-links">
       <a href="#">About</a>
-      <a href="#">Shop</a>
       <a href="#">Help</a>
     </nav>
   </div>

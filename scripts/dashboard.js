@@ -12,11 +12,15 @@ document.addEventListener('DOMContentLoaded', () => {
         el._t = setTimeout(() => el.classList.remove('show'), 2600);
     }
 
-    // Nav links (excluding cart)
+    // Nav links: show toast, wait a moment, then navigate
     document.querySelectorAll('.nav-links a:not(.cart-btn)').forEach(a => {
         a.addEventListener('click', e => {
             e.preventDefault();
+            if (a._navTimeout) clearTimeout(a._navTimeout);
             toast(`Navigating to ${a.textContent.trim()}…`);
+            a._navTimeout = setTimeout(() => {
+                window.location.href = a.href;
+            }, 500);
         });
     });
 
@@ -100,16 +104,5 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!e.target.closest('.search-field-wrap')) results.classList.remove('open');
     });
 
-    // Add demo item to cart after everything loads
-    if (typeof CartPanel !== 'undefined') {
-        CartPanel.addItem({
-            id: 1,
-            name: 'Microsoft Lumia 640 XL',
-            price: 298,
-            image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=300&q=80'
-        });
-    } else {
-        console.error('CartPanel is not defined – check cart-panel.js');
-    }
 
 });

@@ -30,7 +30,6 @@ $email = "example@gmail.com";
 
     <nav class="nav-links">
       <a href="#">About</a>
-      <a href="#">Shop</a>
       <a href="#">Help</a>
     </nav>
   </div>

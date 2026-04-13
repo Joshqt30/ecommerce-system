@@ -7,9 +7,10 @@
 /* OTP container */
 .otp-inputs {
   display: flex;
-  justify-content: space-between;
+  justify-content: center; /* instead of space-between */
   gap: 10px;
   margin-bottom: 20px;
+  flex-wrap: wrap; /* prevents overflow */
 }
 
 /* Each box */
@@ -20,8 +21,8 @@
   font-size: 18px;
   border: 1px solid #ddd;
   border-radius: 6px;
+  box-sizing: border-box; /* important */
 }
-
 /* Focus effect */
 .otp-inputs input:focus {
   border-color: #6366F1;
