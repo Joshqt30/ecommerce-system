@@ -1,4 +1,24 @@
+<?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+include '../config/db.php';
 
+$user = null;
+
+if (isset($_SESSION['user_id'])) {
+    $user_id = $_SESSION['user_id'];
+
+    $stmt = $conn->prepare("SELECT username, email FROM users WHERE id = ?");
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+
+    $result = $stmt->get_result();
+    $user = $result->fetch_assoc();
+}
+?>
+ 
+ 
  <!-- Header -->
     <header class="header">
         <div class="nav-bar">
@@ -24,6 +44,7 @@
             </a>
  
             <!-- ── Account icon + dropdown ── -->
+            <?php if (isset($_SESSION['user_id'])): ?>
             <div class="account-wrap" id="accountWrap">
  
                 <!-- Circular account button -->
@@ -55,8 +76,13 @@
                                 </svg>
                             </span>
                         </div>
-                        <p class="dd-name">John Doe</p>
-                        <p class="dd-email">johndoe@email.com</p>
+                        <p class="dd-name">
+                        <?= isset($user['username']) ? $user['username'] : 'Guest'; ?>
+                    </p>
+
+                    <p class="dd-email">
+                        <?= isset($user['email']) ? $user['email'] : 'Not logged in'; ?>
+                    </p>
                     </div>
  
                     <div class="dd-divider"></div>
@@ -98,7 +124,7 @@
  
                     <div class="dd-divider"></div>
  
-                    <a href="../auth/logout.php" class="dd-item dd-logout">
+                    <a href="/ecommerce-system/auth/logout.php" class="dd-item dd-logout">
                         <span class="dd-item-icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -112,7 +138,12 @@
  
                 </div>
             </div>
- 
+            <?php else: ?>
+
+            <a href="../auth/login.php" class="login-btn">Login</a>
+
+        <?php endif; ?>
+        
         </nav>
     </div>
 </header>

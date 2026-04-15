@@ -1,7 +1,31 @@
 <?php
-/* Temporary data (later from POST or SESSION) */
-$username = $_POST['username'] ?? "Juan123";
-$email = $_POST['email'] ?? "juan@email.com";
+session_start();
+
+if ($_SERVER["REQUEST_METHOD"] == "POST" && !isset($_POST['confirm_register'])) {
+
+    $username = $_POST['username'] ?? '';
+    $email = $_POST['email'] ?? '';
+    $password = $_POST['password'] ?? '';
+
+    $_SESSION['reg_username'] = $username;
+    $_SESSION['reg_email'] = $email;
+    $_SESSION['reg_password'] = $password;
+
+} else {
+    $username = $_SESSION['reg_username'] ?? '';
+    $email = $_SESSION['reg_email'] ?? '';
+}
+
+if (isset($_POST['confirm_register'])) {
+
+    $_SESSION['otp'] = rand(100000, 999999);
+    $_SESSION['otp_time'] = time();
+
+    unset($_SESSION['otp_sent']);
+
+    header("Location: verification.php");
+    exit();
+}
 ?>
 
 <!doctype html>
@@ -30,6 +54,7 @@ $email = $_POST['email'] ?? "juan@email.com";
 
     <nav class="nav-links">
       <a href="#">About</a>
+      <a href="#">Shop</a>
       <a href="#">Help</a>
     </nav>
   </div>
@@ -62,20 +87,22 @@ $email = $_POST['email'] ?? "juan@email.com";
 
     </div>
 
-    <form method="POST" action="register.php">
+    <form method="POST">
 
-      <!-- pass data forward -->
-      <input type="hidden" name="username" value="<?php echo $username; ?>">
-      <input type="hidden" name="email" value="<?php echo $email; ?>">
+  <!-- pass data forward (optional display only) -->
+  <input type="hidden" name="username" value="<?php echo $username; ?>">
+  <input type="hidden" name="email" value="<?php echo $email; ?>">
 
-      <label class="terms">
-        <input type="checkbox" required>
-        I agree to the Terms & Conditions
-      </label>
+  <label class="terms">
+    <input type="checkbox" required>
+    I agree to the Terms & Conditions
+  </label>
 
-      <button type="submit">Confirm & Create Account</button>
+  <button type="submit" name="confirm_register">
+    Confirm & Create Account
+  </button>
 
-    </form>
+</form>
 
     <p class="signup-text">
       Want to edit? <a href="register.php">Go back</a>

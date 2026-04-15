@@ -1,9 +1,12 @@
 <?php
-$category = isset($_GET['cat']) ? htmlspecialchars($_GET['cat']) : 'Computers & Laptops';
+include '../config/db.php'; // ✅ ADD THIS
+
+$category = isset($_GET['cat']) ? $_GET['cat'] : 'All';
+$search = isset($_GET['search']) ? $_GET['search'] : '';
+
 include '../includes/cart-panel.php';
 include '../includes/header.php';
 ?>
-
 <!doctype html>
 <html lang="en">
 <head>
@@ -109,164 +112,61 @@ include '../includes/header.php';
             <section class="product-grid" id="productGrid">
 
                 <!-- Product card template (repeated) -->
-                <!-- Card 1 -->
-                <article class="product-card" data-price="298" data-name="MacBook Air M3">
-                    <div class="card-img-wrap">
-                        <img src="https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&q=80"
-                             alt="MacBook Air M3" class="card-img"/>
-                        <button class="card-wishlist" aria-label="Save to wishlist">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                            </svg>
-                        </button>
-                    </div>
-                    <div class="card-body">
-                        <p class="card-name">MacBook Air M3</p>
-                        <p class="card-desc">13-inch, 8GB RAM, 256GB SSD — ultra-thin and fast</p>
-                        <div class="card-stars">★★★★★ <span class="card-reviews">(128)</span></div>
-                        <div class="card-footer">
-                            <span class="card-price">$298.00</span>
-                            <div class="card-actions">
-                                <button class="btn-cart" onclick="addToCart(this, 1, 'MacBook Air M3', 298, 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&q=80')">Add to Cart</button>
-                                <button class="btn-buy" onclick="buyNow()">Buy now</button>
-                            </div>
-                        </div>
-                    </div>
-                </article>
+                    <?php
+                include '../config/db.php';
 
-                <!-- Card 2 -->
-                <article class="product-card" data-price="199" data-name="Dell XPS 15">
-                    <div class="card-img-wrap">
-                        <img src="https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=400&q=80"
-                             alt="Dell XPS 15" class="card-img"/>
-                        <button class="card-wishlist" aria-label="Save to wishlist">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                            </svg>
-                        </button>
-                    </div>
-                    <div class="card-body">
-                        <p class="card-name">Dell XPS 15</p>
-                        <p class="card-desc">15.6-inch OLED, Intel i7, 512GB SSD performance laptop</p>
-                        <div class="card-stars">★★★★☆ <span class="card-reviews">(94)</span></div>
-                        <div class="card-footer">
-                            <span class="card-price">$199.00</span>
-                            <div class="card-actions">
-                                <button class="btn-cart" onclick="addToCart(this, 2, 'Dell XPS 15', 199, 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=400&q=80')">Add to Cart</button>
-                                <button class="btn-buy" onclick="buyNow()">Buy now</button>
-                            </div>
-                        </div>
-                    </div>
-                </article>
+                $category = isset($_GET['cat']) ? $_GET['cat'] : 'All';
+                $search = isset($_GET['search']) ? $_GET['search'] : '';
 
-                <!-- Card 3 -->
-                <article class="product-card" data-price="499" data-name="Lenovo ThinkPad X1">
-                    <div class="card-img-wrap">
-                        <img src="https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=400&q=80"
-                             alt="Lenovo ThinkPad X1" class="card-img"/>
-                        <button class="card-wishlist" aria-label="Save to wishlist">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                            </svg>
-                        </button>
-                        <span class="card-badge">Sale</span>
-                    </div>
-                    <div class="card-body">
-                        <p class="card-name">Lenovo ThinkPad X1 Carbon</p>
-                        <p class="card-desc">14-inch, Intel i5, 16GB RAM, lightweight business laptop</p>
-                        <div class="card-stars">★★★★★ <span class="card-reviews">(211)</span></div>
-                        <div class="card-footer">
-                            <span class="card-price">$499.00</span>
-                            <div class="card-actions">
-                                <button class="btn-cart" onclick="addToCart(this, 3, 'Lenovo ThinkPad X1 Carbon', 499, 'https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=400&q=80')">Add to Cart</button>
-                                <button class="btn-buy" onclick="buyNow()">Buy now</button>
-                            </div>
-                        </div>
-                    </div>
-                </article>
+                // Build the SQL query
+                if (!empty($search)) {
+                    $search_escaped = $conn->real_escape_string($search);
+                    $sql = "SELECT * FROM products WHERE name LIKE '%$search_escaped%' OR description LIKE '%$search_escaped%'";
+                } elseif ($category == "All" || $category == "Others") {
+                    $sql = "SELECT * FROM products";
+                } else {
+                    $sql = "SELECT * FROM products WHERE category = '$category'";
+                }
 
-                <!-- Card 4 -->
-                <article class="product-card" data-price="349" data-name="Samsung Galaxy Book">
-                    <div class="card-img-wrap">
-                        <img src="https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?w=400&q=80"
-                             alt="Samsung Galaxy Book" class="card-img"/>
-                        <button class="card-wishlist" aria-label="Save to wishlist">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                            </svg>
-                        </button>
-                    </div>
-                    <div class="card-body">
-                        <p class="card-name">Samsung Galaxy Book Pro</p>
-                        <p class="card-desc">15.6-inch AMOLED display, Intel Evo platform</p>
-                        <div class="card-stars">★★★★☆ <span class="card-reviews">(76)</span></div>
-                        <div class="card-footer">
-                            <span class="card-price">$349.00</span>
-                            <div class="card-actions">
-                                <button class="btn-cart" onclick="addToCart(this, 4, 'Samsung Galaxy Book Pro', 349, 'https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?w=400&q=80')">Add to Cart</button>
-                                <button class="btn-buy" onclick="buyNow()">Buy now</button>
-                            </div>
-                        </div>
-                    </div>
-                </article>
+                $result = $conn->query($sql);
 
-                <!-- Card 5 -->
-                <article class="product-card" data-price="129" data-name="Acer Chromebook">
-                    <div class="card-img-wrap">
-                        <img src="https://images.unsplash.com/photo-1484788984921-03950022c9ef?w=400&q=80"
-                             alt="Acer Chromebook" class="card-img"/>
-                        <button class="card-wishlist" aria-label="Save to wishlist">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                            </svg>
-                        </button>
-                        <span class="card-badge new">New</span>
-                    </div>
-                    <div class="card-body">
-                        <p class="card-name">Acer Chromebook Spin 714</p>
-                        <p class="card-desc">14-inch convertible, Intel Core i3, 8GB RAM</p>
-                        <div class="card-stars">★★★☆☆ <span class="card-reviews">(43)</span></div>
-                        <div class="card-footer">
-                            <span class="card-price">$129.00</span>
-                            <div class="card-actions">
-                                <button class="btn-cart" onclick="addToCart(this, 5, 'Acer Chromebook Spin 714', 129, 'https://images.unsplash.com/photo-1484788984921-03950022c9ef?w=400&q=80')">Add to Cart</button>
-                                <button class="btn-buy" onclick="buyNow()">Buy now</button>
+                // Debug: kung walang result, ipakita ang error at SQL
+                if (!$result) {
+                    echo "<p>SQL Error: " . $conn->error . "</p>";
+                    echo "<p>SQL: " . htmlspecialchars($sql) . "</p>";
+                } elseif ($result->num_rows > 0) {
+                    while($row = $result->fetch_assoc()):
+                ?>
+                        <article class="product-card" data-price="<?= $row['price'] ?>" data-name="<?= $row['name'] ?>">
+                            <div class="card-img-wrap">
+                                <img src="<?= $row['image'] ?>" class="card-img"/>
                             </div>
-                        </div>
-                    </div>
-                </article>
-
-                <!-- Card 6 -->
-                <article class="product-card" data-price="899" data-name="Apple MacBook Pro">
-                    <div class="card-img-wrap">
-                        <img src="https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=400&q=80"
-                             alt="Apple MacBook Pro" class="card-img"/>
-                        <button class="card-wishlist" aria-label="Save to wishlist">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                            </svg>
-                        </button>
-                    </div>
-                    <div class="card-body">
-                        <p class="card-name">Apple MacBook Pro 16"</p>
-                        <p class="card-desc">M3 Pro chip, 18GB RAM, 512GB SSD — pro-level performance</p>
-                        <div class="card-stars">★★★★★ <span class="card-reviews">(305)</span></div>
-                        <div class="card-footer">
-                            <span class="card-price">$899.00</span>
-                            <div class="card-actions">
-                                <button class="btn-cart" onclick="addToCart(this, 6, 'Apple MacBook Pro  16&quot;', 899, 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=400&q=80')">Add to Cart</button>
-                                <button class="btn-buy" onclick="buyNow()">Buy now</button>
+                            <div class="card-body">
+                                <p class="card-name"><?= $row['name'] ?></p>
+                                <p class="card-desc"><?= $row['description'] ?></p>
+                                <div class="card-footer">
+                                    <span class="card-price">$<?= $row['price'] ?></span>
+                                    <div class="card-actions">
+                                        <button class="btn-cart" onclick="addToCart(this, <?= $row['id'] ?>, '<?= $row['name'] ?>', <?= $row['price'] ?>, '<?= $row['image'] ?>')">
+                                            Add to Cart
+                                        </button>
+                                        <button class="btn-buy" onclick="buyNow(<?= $row['id'] ?>)">
+                                            Buy now
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    </div>
-                </article>
-
+                        </article>
+                <?php
+                    endwhile;
+               } else {
+    if (!empty($search)) {
+        echo "<p>No products match \"$search\".</p>";
+    } else {
+        echo "<p>No products found in <strong>" . htmlspecialchars($category) . "</strong>.</p>";
+    }
+}
+                ?>
             </section>
         </div><!-- /category-layout -->
 

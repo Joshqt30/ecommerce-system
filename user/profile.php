@@ -1,7 +1,61 @@
 <?php
-include '../includes/cart-panel.php';
+session_start();
+if (!isset($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit;
+}
+
 include '../includes/header.php';
-$tab = isset($_GET['tab']) ? $_GET['tab'] : 'profile';
+include '../includes/cart-panel.php';
+include '../config/db.php';
+
+$user_id = $_SESSION['user_id'];
+
+// ✅ FIXED: match your actual DB structure
+$stmt = $conn->prepare("SELECT username, email, phone, birth_date, address FROM users WHERE id = ?");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$user = $stmt->get_result()->fetch_assoc();
+
+$tab = $_GET['tab'] ?? 'profile';
+
+// ✅ UPDATE PROFILE
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
+    $username = $_POST['username'];
+    $email    = $_POST['email'];
+    $phone    = $_POST['phone'];
+    $birth    = $_POST['birth_date'];
+    $address  = $_POST['address'];
+
+    $update = $conn->prepare("UPDATE users SET username=?, email=?, phone=?, birth_date=?, address=? WHERE id=?");
+    $update->bind_param("sssssi", $username, $email, $phone, $birth, $address, $user_id);
+
+    if ($update->execute()) {
+        $success = "Profile updated!";
+        $stmt->execute();
+        $user = $stmt->get_result()->fetch_assoc();
+    } else {
+        $error = "Update failed.";
+    }
+}
+
+// ✅ FETCH ORDERS (FIXED QUERY)
+$orders = [];
+$orderQuery = $conn->prepare("
+    SELECT o.id, o.total, o.status, o.created_at, p.name AS product_name
+    FROM orders o
+    JOIN order_items oi ON o.id = oi.order_id
+    JOIN products p ON oi.product_id = p.id
+    WHERE o.user_id = ?
+    ORDER BY o.created_at DESC
+");
+$orderQuery->bind_param("i", $user_id);
+$orderQuery->execute();
+$res = $orderQuery->get_result();
+
+while ($row = $res->fetch_assoc()) {
+    $orders[] = $row;
+}
 ?>
 
 <!doctype html>

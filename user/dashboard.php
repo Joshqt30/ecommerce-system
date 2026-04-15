@@ -1,6 +1,18 @@
 <?php
+session_start();
+
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Cache-Control: post-check=0, pre-check=0", false);
+header("Pragma: no-cache");
+
+if (!isset($_SESSION['user_id'])) {
+    header("Location: ../auth/login.php");
+    exit();
+}
+
 include '../includes/cart-panel.php';
 include '../includes/header.php';
+include '../config/db.php';
 ?>
 
 <!doctype html>
@@ -125,7 +137,7 @@ include '../includes/header.php';
         <img src="https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=160&q=75" alt="Cameras" />
         <span class="subcategory-title">Cameras</span>
     </a>
-    <a href="../user/category.php?cat=<?= urlencode('Others') ?>" class="item-subcategory" style="text-decoration: none; color: inherit;">
+   <a href="../user/category.php?cat=All" class="item-subcategory" style="text-decoration: none; color: inherit;">
         <img src="https://images.unsplash.com/photo-1491553895911-0055eca6402d?w=160&q=75" alt="Others" />
         <span class="subcategory-title">Others</span>
     </a>

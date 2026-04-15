@@ -77,3 +77,14 @@
   color: #6366F1;
   text-decoration: none;
 }
+
+.logout-success {
+    background: #e6ffed;
+    color: #1a7f37;
+    padding: 10px 12px;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    font-size: 14px;
+    border: 1px solid #b7ebc6;
+    transition: opacity 0.3s ease;
+}

@@ -5,18 +5,15 @@ require_once "../vendor/autoload.php";
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-if (!isset($_SESSION['otp'])) {
-    header("Location: register.php");
+if (!isset($_SESSION['reset_email']) || !isset($_SESSION['reset_otp'])) {
+    header("Location: reset-password.php");
     exit();
 }
 
-$email = $_SESSION['reg_email'] ?? '';
+$email = $_SESSION['reset_email'];
 
-if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    die("Invalid or missing email!");
-}
-
-if (!isset($_SESSION['otp_sent'])) {
+// ✅ SEND EMAIL
+if (empty($_SESSION['reset_otp_sent'])) {
 
     $mail = new PHPMailer(true);
 
@@ -26,28 +23,28 @@ if (!isset($_SESSION['otp_sent'])) {
         $mail->SMTPAuth = true;
 
         $mail->Username = 'makers0358@gmail.com';
-        $mail->Password = 'plqdvmjsrtomputu';
+        $mail->Password = 'plqdvmjsrtomputu'; // ⚠️ IMPORTANT
 
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = 587;
 
         $mail->setFrom('YOUR_EMAIL@gmail.com', 'E-Commerce');
-        $mail->addAddress(trim($email));
+        $mail->addAddress($email);
 
         $mail->isHTML(true);
-        $mail->Subject = "Your Verification Code";
-        $mail->Body = "<h2>Your OTP Code is: <b>{$_SESSION['otp']}</b></h2>";
+        $mail->Subject = "Reset Password Code";
+        $mail->Body = "<h2>Your OTP Code: <b>{$_SESSION['reset_otp']}</b></h2>";
 
         $mail->send();
 
-        $_SESSION['otp_sent'] = true;
+        $_SESSION['reset_otp_sent'] = true;
 
     } catch (Exception $e) {
         echo "Email failed: {$mail->ErrorInfo}";
     }
 }
 
-// VERIFY OTP
+// ✅ VERIFY OTP
 if (isset($_POST['verify'])) {
 
     $inputOtp =
@@ -58,24 +55,10 @@ if (isset($_POST['verify'])) {
         $_POST['otp5'] .
         $_POST['otp6'];
 
-    if ($inputOtp == $_SESSION['otp']) {
+    if ($inputOtp == $_SESSION['reset_otp']) {
 
-        require_once "../config/db.php";
-
-        $username = $_SESSION['reg_username'];
-        $email = $_SESSION['reg_email'];
-        $password = password_hash($_SESSION['reg_password'], PASSWORD_DEFAULT);
-
-        $stmt = $conn->prepare("INSERT INTO users (username, email, password) VALUES (?, ?, ?)");
-        $stmt->bind_param("sss", $username, $email, $password);
-        $stmt->execute();
-
-        session_destroy();
-
-        echo "<script>
-            alert('Registration successful!');
-            window.location.href='login.php';
-        </script>";
+        header("Location: new-password.php");
+        exit();
 
     } else {
         echo "<script>alert('Invalid OTP');</script>";

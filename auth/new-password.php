@@ -1,4 +1,43 @@
 <?php
+session_start();
+require_once "../config/db.php";
+
+if (!isset($_SESSION['reset_email'])) {
+    header("Location: reset-password.php");
+    exit();
+}
+
+if (isset($_POST['update_password'])) {
+
+    $newPass = $_POST['new_password'];
+    $confirmPass = $_POST['confirm_password'];
+
+    if ($newPass !== $confirmPass) {
+        echo "<script>alert('Passwords do not match');</script>";
+    } else {
+
+        $email = $_SESSION['reset_email'];
+        $hashedPassword = password_hash($newPass, PASSWORD_DEFAULT);
+
+        $stmt = $conn->prepare("UPDATE users SET password = ? WHERE email = ?");
+        $stmt->bind_param("ss", $hashedPassword, $email);
+
+        if ($stmt->execute()) {
+
+            session_destroy();
+
+            echo "<script>
+                alert('Password updated successfully!');
+                window.location.href='login.php';
+            </script>";
+
+        } else {
+            echo "<script>alert('Error updating password');</script>";
+        }
+
+        $stmt->close();
+    }
+}
 ?>
 
 <!doctype html>
@@ -28,6 +67,7 @@
 
     <nav class="nav-links">
       <a href="#">About</a>
+      <a href="#">Shop</a>
       <a href="#">Help</a>
     </nav>
   </div>

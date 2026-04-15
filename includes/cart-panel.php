@@ -1,3 +1,11 @@
+<?php
+
+include '../config/db.php';
+
+?>
+
+
+
 <div class="cart-overlay" id="cartOverlay"></div>
  
 <aside class="cart-panel" id="cartPanel">

@@ -1,4 +1,33 @@
 <?php
+session_start();
+require_once "../config/db.php";
+
+if (isset($_POST['reset'])) {
+
+    $email = trim($_POST['email']);
+
+    $stmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
+    $stmt->bind_param("s", $email);
+    $stmt->execute();
+    $stmt->store_result();
+
+    if ($stmt->num_rows > 0) {
+
+        $_SESSION['reset_email'] = $email;
+
+        // ✅ generate OTP
+        $_SESSION['reset_otp'] = rand(100000, 999999);
+        $_SESSION['reset_otp_sent'] = false;
+
+        header("Location: verify-reset.php");
+        exit();
+
+    } else {
+        echo "<script>alert('Email not found');</script>";
+    }
+
+    $stmt->close();
+}
 ?>
 
 <!doctype html>
@@ -28,6 +57,7 @@
 
     <nav class="nav-links">
       <a href="#">About</a>
+      <a href="#">Shop</a>
       <a href="#">Help</a>
     </nav>
   </div>

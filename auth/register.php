@@ -1,4 +1,25 @@
 <?php
+session_start();
+
+if (isset($_POST['register'])) {
+
+    $username = $_POST['username'];
+    $email = $_POST['email'];
+    $password = $_POST['password'];
+    $confirm = $_POST['confirm_password'];
+
+    if ($password !== $confirm) {
+        echo "<script>alert('Passwords do not match');</script>";
+    } else {
+
+        $_SESSION['reg_username'] = $username;
+        $_SESSION['reg_email'] = $email;
+        $_SESSION['reg_password'] = $password;
+
+        header("Location: confirm-register.php");
+        exit();
+    }
+}
 ?>
 
 <!doctype html>
@@ -30,6 +51,7 @@
 
     <nav class="nav-links">
       <a href="#">About</a>
+      <a href="#">Shop</a>
       <a href="#">Help</a>
     </nav>
   </div>

@@ -2,6 +2,7 @@
 
 include '../includes/cart-panel.php';
 include '../includes/header.php';
+include '../config/db.php';
 
 ?>
 

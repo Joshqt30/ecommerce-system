@@ -1,5 +1,64 @@
 <?php
+session_start();
+require_once "../config/db.php";
 
+// 🔥 FORCE CLEAR OLD SESSION WHEN ON LOGIN PAGE
+if (isset($_SESSION['user_id'])) {
+    header("Location: ../user/dashboard.php");
+    exit();
+}
+
+$logoutMessage = false;
+
+if (isset($_GET['logout']) && $_GET['logout'] === 'success') {
+    $logoutMessage = true;
+}
+
+if ($logoutMessage) {
+    echo "<script>
+        if (window.history.replaceState) {
+            window.history.replaceState(null, null, window.location.pathname);
+        }
+    </script>";
+}
+
+if (isset($_POST['login'])) {
+
+    $username = trim($_POST['username']);
+    $password = $_POST['password'];
+
+    // Prepare query
+    $stmt = $conn->prepare("SELECT id, username, password FROM users WHERE username = ?");
+    $stmt->bind_param("s", $username);
+    $stmt->execute();
+
+    $result = $stmt->get_result();
+
+    if ($result->num_rows === 1) {
+
+        $user = $result->fetch_assoc();
+
+        // Verify password
+        if (password_verify($password, $user['password'])) {
+
+            // Create session
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['username'] = $user['username'];
+
+            // Redirect to dashboard
+            header("Location: ../user/dashboard.php");
+            exit();
+
+        } else {
+            echo "<script>alert('Incorrect password');</script>";
+        }
+
+    } else {
+        echo "<script>alert('Username not found');</script>";
+    }
+
+    $stmt->close();
+}
 ?>
 
 <!doctype html>
@@ -31,6 +90,7 @@
 
     <nav class="nav-links">
       <a href="#">About</a>
+      <a href="#">Shop</a>
       <a href="#">Help</a>
     </nav>
   </div>
@@ -45,15 +105,21 @@
 
     <h2>Sign in</h2>
 
+    <?php if ($logoutMessage): ?>
+        <div class="logout-success">
+            ✅ Logged out successfully!
+        </div>
+    <?php endif; ?>
+
     <form method="POST">
 
-      <input type="text" name="email" placeholder="Username" required>
+      <input type="text" name="username" placeholder="Username" required>
 
       <input type="password" name="password" placeholder="Password" required>
 
       <button type="submit" name="login">Sign In</button>
 
-      <a href="#" class="forgot">Forgot password?</a>
+      <a href="reset-password.php" class="forgot">Forgot password?</a>
 
     </form>
 
@@ -64,6 +130,24 @@
   </div>
 
 </div>
+
+
+<script>
+window.addEventListener("DOMContentLoaded", () => {
+    const msg = document.querySelector(".logout-success");
+
+    if (msg) {
+        setTimeout(() => {
+            msg.style.transition = "opacity 0.3s ease";
+            msg.style.opacity = "0";
+
+            setTimeout(() => {
+                msg.remove();
+            }, 300);
+        }, 1000); // 1 second
+    }
+});
+</script>
 
 </body>
 </html>
