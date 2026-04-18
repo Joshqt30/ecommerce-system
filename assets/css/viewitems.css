@@ -596,6 +596,31 @@
   text-align: center;
 }
 
+.stock-status {
+  font-size: 14px;
+  font-weight: 500;
+  margin: 10px 0 4px;
+  color: #16a34a;
+}
+
+.stock-status-wrapper {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 14px;
+}
+
+.stock-quantity {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* When out of stock, you can style the wrapper or individual spans */
+.stock-status.out-of-stock {
+  color: #dc2626;
+}
+
     /* ── RESPONSIVE ── */
     @media (max-width: 820px) {
       nav { padding: 0 20px; }

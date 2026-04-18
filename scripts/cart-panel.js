@@ -4,26 +4,55 @@
  * Drop this script into any page that includes cart-panel.php.
  * It manages:
  *   - Opening / closing the side panel
- *   - A shared in-memory cart (ready to swap for localStorage / API later)
+ *   - A shared cart stored in localStorage (persists across pages)
  *   - Adding, removing, and updating item quantities
  *   - Keeping the cart count badge in the nav in sync
  *
  * To add an item from any page, call:
- *   CartPanel.addItem({ id, name, price, image })
+ *   CartPanel.addItem({ variantId, productId, name, price, quantity, image })
  * ─────────────────────────────────────────────────────
  */
 
 const CartPanel = (() => {
 
   // ── State ────────────────────────────────────────────
-  let items = []; // [{ id, name, price, image, qty }]
+  let items = []; // [{ variantId, productId, name, price, quantity, image }]
 
   // ── DOM refs (resolved after DOMContentLoaded) ───────
   let panel, overlay, closeBtn, body, itemsList,
       emptyState, footer, totalEl, countEl, navCountEl, checkoutBtn;
 
+  // ── Load cart from localStorage ──────────────────────
+  function loadFromStorage() {
+    try {
+      const stored = localStorage.getItem('ecommerce_cart');
+      if (stored) {
+        items = JSON.parse(stored);
+        // Ensure quantity field exists (migration from old qty)
+        items = items.map(item => ({
+          ...item,
+          quantity: item.quantity || item.qty || 1
+        }));
+      }
+    } catch (e) {
+      console.warn('Failed to load cart from storage', e);
+      items = [];
+    }
+  }
+
+  // ── Save cart to localStorage ────────────────────────
+  function saveToStorage() {
+    try {
+      localStorage.setItem('ecommerce_cart', JSON.stringify(items));
+    } catch (e) {
+      console.warn('Failed to save cart', e);
+    }
+  }
+
   // ── Init ─────────────────────────────────────────────
   function init() {
+    loadFromStorage();
+
     panel      = document.getElementById('cartPanel');
     overlay    = document.getElementById('cartOverlay');
     closeBtn   = document.getElementById('cartPanelClose');
@@ -40,7 +69,7 @@ const CartPanel = (() => {
 
     if (!panel) return; // panel not present on this page
 
-       // Open panel when cart button is clicked (fixed selector)
+    // Open panel when cart button is clicked
     document.querySelectorAll('.cart-btn, #navCart').forEach(btn => {
       btn.addEventListener('click', e => {
         e.preventDefault();
@@ -58,9 +87,12 @@ const CartPanel = (() => {
 
     // Checkout
     checkoutBtn.addEventListener('click', () => {
-      showToast('Proceeding to checkout…');
-      close();
+      window.location.href = '../user/checkout.php';
     });
+
+    // Initial render
+    render();
+    syncNavBadge();
   }
 
   // ── Open / Close ─────────────────────────────────────
@@ -76,34 +108,55 @@ const CartPanel = (() => {
     document.body.style.overflow = '';
   }
 
-   // ── Add item (public API) ─────────────────────────────
+  // ── Add item (public API) ─────────────────────────────
   function addItem(product) {
     // Safety: make sure init has run
     if (!panel) init();
 
-    const existing = items.find(i => i.id === product.id);
+    // Use variantId as unique identifier
+    const id = product.variantId;
+    const existing = items.find(i => i.variantId === id);
     if (existing) {
-      existing.qty++;
+      existing.quantity += product.quantity || 1;
     } else {
-      items.push({ ...product, qty: 1 });
+      items.push({
+        variantId: product.variantId,
+        productId: product.productId,
+        name: product.name,
+        price: product.price,
+        quantity: product.quantity || 1,
+        image: product.image
+      });
     }
+    saveToStorage();
     render();
     syncNavBadge();
-    open();           // This forces the panel to open when item is added
+    open(); // Show panel when item is added
   }
 
   // ── Remove item ───────────────────────────────────────
-  function removeItem(id) {
-    items = items.filter(i => i.id !== id);
+  function removeItem(variantId) {
+    items = items.filter(i => i.variantId !== variantId);
+    saveToStorage();
     render();
     syncNavBadge();
   }
 
   // ── Update quantity ───────────────────────────────────
-  function updateQty(id, delta) {
-    const item = items.find(i => i.id === id);
+  function updateQty(variantId, delta) {
+    const item = items.find(i => i.variantId === variantId);
     if (!item) return;
-    item.qty = Math.max(1, item.qty + delta);
+    const newQty = Math.max(1, item.quantity + delta);
+    item.quantity = newQty;
+    saveToStorage();
+    render();
+    syncNavBadge();
+  }
+
+  // ── Clear entire cart ─────────────────────────────────
+  function clearCart() {
+    items = [];
+    saveToStorage();
     render();
     syncNavBadge();
   }
@@ -112,11 +165,11 @@ const CartPanel = (() => {
   function render() {
     if (!itemsList) return;
 
-    const totalQty   = items.reduce((s, i) => s + i.qty, 0);
-    const totalPrice = items.reduce((s, i) => s + i.price * i.qty, 0);
+    const totalQty   = items.reduce((s, i) => s + i.quantity, 0);
+    const totalPrice = items.reduce((s, i) => s + i.price * i.quantity, 0);
 
     // Count badge in panel header
-    countEl.textContent = `(${totalQty})`;
+    if (countEl) countEl.textContent = `(${totalQty})`;
 
     // Empty / filled state
     if (items.length === 0) {
@@ -128,31 +181,31 @@ const CartPanel = (() => {
 
     emptyState.style.display = 'none';
     footer.style.display = 'block';
-    totalEl.textContent = '$' + totalPrice.toFixed(2);
+    totalEl.textContent = '₱' + totalPrice.toFixed(2);
 
     // Build item cards
     itemsList.innerHTML = items.map(item => `
-      <div class="cart-item" data-id="${item.id}">
+      <div class="cart-item" data-id="${item.variantId}">
         <img class="cart-item-img"
-          src="${item.image}"
+          src="${window.productImgsBase || '/ecommerce-system/imgs/products/'}${item.image}"
           alt="${item.name}"
           onerror="this.src='https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=160&q=75'" />
         <div class="cart-item-info">
           <div class="cart-item-name">${item.name}</div>
-          <div class="cart-item-price">$${(item.price * item.qty).toFixed(2)}</div>
+          <div class="cart-item-price">₱${(item.price * item.quantity).toFixed(2)}</div>
           <div class="cart-item-qty">
-            <button class="qty-btn" data-action="dec" data-id="${item.id}">−</button>
-            <span class="qty-val">${item.qty}</span>
-            <button class="qty-btn" data-action="inc" data-id="${item.id}">+</button>
+            <button class="qty-btn" data-action="dec" data-id="${item.variantId}">−</button>
+            <span class="qty-val">${item.quantity}</span>
+            <button class="qty-btn" data-action="inc" data-id="${item.variantId}">+</button>
           </div>
         </div>
         <div class="cart-item-actions">
-          <button class="cart-item-confirm" data-id="${item.id}" title="Save">
+          <button class="cart-item-confirm" data-id="${item.variantId}" title="Save">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="20 6 9 17 4 12"/>
             </svg>
           </button>
-          <button class="cart-item-delete" data-id="${item.id}" title="Remove">
+          <button class="cart-item-delete" data-id="${item.variantId}" title="Remove">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="3 6 5 6 21 6"/>
               <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
@@ -187,7 +240,7 @@ const CartPanel = (() => {
   // ── Sync the nav "Your cart (n)" badge ───────────────
   function syncNavBadge() {
     if (!navCountEl) return;
-    const total = items.reduce((s, i) => s + i.qty, 0);
+    const total = items.reduce((s, i) => s + i.quantity, 0);
     navCountEl.textContent = `(${total})`;
   }
 
@@ -195,7 +248,6 @@ const CartPanel = (() => {
   function showToast(msg) {
     let toast = document.getElementById('toast');
     if (!toast) {
-      // Create one if the page doesn't already have it
       toast = document.createElement('div');
       toast.id = 'toast';
       toast.className = 'toast';
@@ -216,6 +268,6 @@ const CartPanel = (() => {
   document.addEventListener('DOMContentLoaded', init);
 
   // ── Public API ────────────────────────────────────────
-  return { addItem, removeItem, updateQty, open, close };
+  return { addItem, removeItem, updateQty, clearCart, open, close };
 
 })();

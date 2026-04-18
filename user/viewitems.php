@@ -3,6 +3,8 @@
 
 include '../config/db.php';
 
+define('PRODUCT_IMGS_BASE', '/ecommerce-system/imgs/products/');
+
 $productId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 if ($productId <= 0) {
@@ -35,6 +37,22 @@ while ($img = pg_fetch_assoc($imgRes)) {
 if (count($images) === 0) {
     $images[] = $product['image'];
 }
+
+  // Fetch all variants for this product
+  $variantRes = pg_query_params($conn,
+      "SELECT * FROM product_variants WHERE product_id = $1 ORDER BY id",
+      [$productId]
+  );
+  $variants = pg_fetch_all($variantRes) ?: [];
+
+  // Group variants by attribute types (e.g., "Color", "Size")
+  $attributeGroups = [];
+  foreach ($variants as $v) {
+      $attrs = json_decode($v['attributes'], true);
+      foreach ($attrs as $key => $value) {
+          $attributeGroups[$key][$value] = true;
+      }
+  }
 
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['rating'])) {
@@ -92,15 +110,15 @@ include '../includes/cart-panel.php';
       <div class="thumbnails" id="thumbs">
         <?php foreach ($images as $i => $img): ?>
           <div class="thumb <?= $i === 0 ? 'active' : '' ?>" data-idx="<?= $i ?>">
-            <img src="<?= htmlspecialchars($img) ?>" alt="">
-          </div>
+          <img src="<?= PRODUCT_IMGS_BASE . htmlspecialchars($img) ?>" alt="">          
+        </div>
         <?php endforeach; ?>
       </div>
 
       <div class="main-image">
         <img id="mainImg"
-            src="<?= htmlspecialchars($images[0]) ?>"
-            alt="<?= htmlspecialchars($product['name']) ?>" />
+          src="<?= PRODUCT_IMGS_BASE . htmlspecialchars($images[0]) ?>"
+          alt="<?= htmlspecialchars($product['name']) ?>" />
       </div>
 
     </div>
@@ -135,16 +153,42 @@ include '../includes/cart-panel.php';
       </div>
 
       <!-- SCREEN SIZE -->
-      <div class="option-group">
-        <div class="option-label">Screen size</div>
-        <div class="option-buttons" id="colorOpts">
-          <button class="opt-btn" data-val="Orange">Orange</button>
-          <button class="opt-btn active" data-val="Green">Green</button>
-          <button class="opt-btn" data-val="Black">Black</button>
-          <button class="opt-btn" data-val="White">White</button>
-        </div>
-      </div>
+      <?php
+      // Fetch unique attribute names and values from variants
+      $attributeMap = [];
+      foreach ($variants as $v) {
+          $attrs = json_decode($v['attributes'], true);
+          foreach ($attrs as $attrName => $attrValue) {
+              $attributeMap[$attrName][$attrValue] = true;
+          }
+      }
+      ?>
 
+      <?php foreach ($attributeMap as $attrName => $values): ?>
+          <div class="option-group">
+              <div class="option-label"><?= htmlspecialchars($attrName) ?></div>
+              <div class="option-buttons" data-attribute="<?= htmlspecialchars($attrName) ?>">
+                  <?php 
+                  $first = true;
+                  foreach (array_keys($values) as $val): 
+                  ?>
+                      <button class="opt-btn <?= $first ? 'active' : '' ?>" 
+                              data-val="<?= htmlspecialchars($val) ?>">
+                          <?= htmlspecialchars($val) ?>
+                      </button>
+                  <?php 
+                  $first = false;
+                  endforeach; 
+                  ?>
+              </div>
+          </div>
+      <?php endforeach; ?>
+
+      <!-- STOCK STATUS -->
+      <div class="stock-status-wrapper">
+      <span class="stock-status" id="stockStatus">In Stock</span>
+      <span class="stock-quantity" id="stockQuantity"></span>
+    </div>
       <!-- QUANTITY -->
       <div class="option-group">
         <div class="option-label">Quantity</div>
@@ -184,7 +228,7 @@ include '../includes/cart-panel.php';
     </div>
     <div class="tab-content active" id="tab-description">
     <p><?= htmlspecialchars($product['description']) ?></p>
-    </div>\
+    </div>
   
     
    <div class="tab-content" id="tab-reviews">
@@ -305,6 +349,11 @@ include '../includes/cart-panel.php';
 
 
 <script src="../scripts/cart-panel.js"></script>
+<script>
+    window.productId = <?= json_encode($productId) ?>;
+    window.productVariants = <?= json_encode($variants) ?>;
+    window.productImgsBase = <?= json_encode(PRODUCT_IMGS_BASE) ?>;
+</script>
 <script src="../scripts/viewitems.js"></script>
 
 </body>
