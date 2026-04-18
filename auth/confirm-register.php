@@ -1,26 +1,34 @@
 <?php
 session_start();
 
-if ($_SERVER["REQUEST_METHOD"] == "POST" && !isset($_POST['confirm_register'])) {
-
-    $username = $_POST['username'] ?? '';
-    $email = $_POST['email'] ?? '';
-    $password = $_POST['password'] ?? '';
-
-    $_SESSION['reg_username'] = $username;
-    $_SESSION['reg_email'] = $email;
-    $_SESSION['reg_password'] = $password;
-
-} else {
-    $username = $_SESSION['reg_username'] ?? '';
-    $email = $_SESSION['reg_email'] ?? '';
+/* =========================
+   SECURITY GUARD
+========================= */
+if (!isset($_SESSION['reg_username'], $_SESSION['reg_email'], $_SESSION['reg_password'])) {
+    header("Location: register.php");
+    exit();
 }
 
-if (isset($_POST['confirm_register'])) {
+/* =========================
+   SAFE DATA LOAD
+========================= */
+$username = $_SESSION['reg_username'];
+$email = $_SESSION['reg_email'];
 
+/* =========================
+   OTP GENERATION (ALWAYS READY)
+========================= */
+if (!isset($_SESSION['otp'])) {
     $_SESSION['otp'] = rand(100000, 999999);
     $_SESSION['otp_time'] = time();
+}
 
+/* =========================
+   NAVIGATE TO VERIFICATION
+========================= */
+if (isset($_POST['confirm_register'])) {
+
+    // reset email send flag so verification.php can send OTP
     unset($_SESSION['otp_sent']);
 
     header("Location: verification.php");

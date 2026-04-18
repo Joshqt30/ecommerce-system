@@ -2,6 +2,9 @@
 session_start();
 require_once "../config/db.php";
 
+/* =========================
+   SECURITY CHECK
+========================= */
 if (!isset($_SESSION['reset_email'])) {
     header("Location: reset-password.php");
     exit();
@@ -12,19 +15,31 @@ if (isset($_POST['update_password'])) {
     $newPass = $_POST['new_password'];
     $confirmPass = $_POST['confirm_password'];
 
-    if ($newPass !== $confirmPass) {
+    /* =========================
+       BASIC VALIDATION
+    ========================= */
+    if (strlen($newPass) < 6) {
+        echo "<script>alert('Password must be at least 6 characters');</script>";
+    } elseif ($newPass !== $confirmPass) {
         echo "<script>alert('Passwords do not match');</script>";
     } else {
 
         $email = $_SESSION['reset_email'];
         $hashedPassword = password_hash($newPass, PASSWORD_DEFAULT);
 
-        $stmt = $conn->prepare("UPDATE users SET password = ? WHERE email = ?");
-        $stmt->bind_param("ss", $hashedPassword, $email);
+        /* =========================
+           POSTGRESQL UPDATE
+        ========================= */
+        $query = "UPDATE users SET password = $1 WHERE email = $2";
+        $result = pg_query_params($conn, $query, [
+            $hashedPassword,
+            $email
+        ]);
 
-        if ($stmt->execute()) {
+        if ($result) {
 
-            session_destroy();
+            // only remove reset session (NOT everything)
+            unset($_SESSION['reset_email']);
 
             echo "<script>
                 alert('Password updated successfully!');
@@ -34,8 +49,6 @@ if (isset($_POST['update_password'])) {
         } else {
             echo "<script>alert('Error updating password');</script>";
         }
-
-        $stmt->close();
     }
 }
 ?>

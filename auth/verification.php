@@ -66,16 +66,27 @@ if (isset($_POST['verify'])) {
         $email = $_SESSION['reg_email'];
         $password = password_hash($_SESSION['reg_password'], PASSWORD_DEFAULT);
 
-        $stmt = $conn->prepare("INSERT INTO users (username, email, password) VALUES (?, ?, ?)");
-        $stmt->bind_param("sss", $username, $email, $password);
-        $stmt->execute();
+        $query = "INSERT INTO users (username, email, password) VALUES ($1, $2, $3)";
+        $result = pg_query_params($conn, $query, [
+            $username,
+            $email,
+            $password
+        ]);
 
-        session_destroy();
+        if ($result) {
 
-        echo "<script>
-            alert('Registration successful!');
-            window.location.href='login.php';
-        </script>";
+            session_destroy();
+
+            echo "<script>
+                alert('Registration successful!');
+                window.location.href='login.php';
+            </script>";
+
+        } else {
+            echo "<script>
+                alert('Registration failed!');
+            </script>";
+        }
 
     } else {
         echo "<script>alert('Invalid OTP');</script>";

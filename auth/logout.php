@@ -1,13 +1,21 @@
 <?php
 session_start();
 
-// completely clear session array
+/* =========================
+   CLEAR SESSION DATA
+========================= */
 $_SESSION = [];
 
-// destroy session cookie
+/* =========================
+   DELETE SESSION COOKIE
+========================= */
 if (ini_get("session.use_cookies")) {
     $params = session_get_cookie_params();
-    setcookie(session_name(), '', time() - 42000,
+
+    setcookie(
+        session_name(),
+        '',
+        time() - 42000,
         $params["path"],
         $params["domain"],
         $params["secure"],
@@ -15,8 +23,14 @@ if (ini_get("session.use_cookies")) {
     );
 }
 
-// destroy session
+/* =========================
+   DESTROY SESSION
+========================= */
 session_destroy();
 
-// IMPORTANT: stop execution
-exit(header("Location: login.php?logout=success"));
+/* =========================
+   SAFE REDIRECT
+========================= */
+header("Location: ../auth/login.php?logout=success");
+exit();
+?>

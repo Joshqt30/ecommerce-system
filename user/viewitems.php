@@ -1,8 +1,70 @@
 <?php
 
-include '../includes/cart-panel.php';
-include '../includes/header.php';
+
 include '../config/db.php';
+
+$productId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+
+if ($productId <= 0) {
+    die("Product not found.");
+}
+
+$res = pg_query_params($conn,
+    "SELECT * FROM products WHERE id = $1",
+    [$productId]
+);
+
+$product = pg_fetch_assoc($res);
+
+if (!$product) {
+    die("Product not found.");
+}
+
+/* GET PRODUCT IMAGES */
+$imgRes = pg_query_params($conn,
+    "SELECT image_url FROM product_images WHERE product_id = $1",
+    [$productId]
+);
+
+$images = [];
+while ($img = pg_fetch_assoc($imgRes)) {
+    $images[] = $img['image_url'];
+}
+
+/* fallback if no images */
+if (count($images) === 0) {
+    $images[] = $product['image'];
+}
+
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['rating'])) {
+
+    $rating  = (int)$_POST['rating'];
+    $comment = trim($_POST['comment']);
+
+    if ($rating >= 1 && $rating <= 5 && $comment !== '') {
+
+        /* fake hashed username (privacy-safe) */
+        $username = 'user_' . substr(hash('sha256', session_id() ?? uniqid()), 0, 6);
+
+       $result = pg_query_params($conn,
+    "INSERT INTO reviews (product_id, rating, comment, username, created_at)
+     VALUES ($1, $2, $3, $4, NOW())",
+    [$productId, $rating, $comment, $username]
+      );
+
+      if (!$result) {
+          // Display the PostgreSQL error (temporary, for debugging)
+          die("Review insert failed: " . pg_last_error($conn));
+      }
+    }
+
+    header("Location: viewitems.php?id=" . $productId . "&tab=reviews");
+    exit;
+}
+
+include '../includes/header.php';
+include '../includes/cart-panel.php';
 
 ?>
 
@@ -14,7 +76,7 @@ include '../config/db.php';
   <title>E-Commerce – Product Page</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="../assets/css/cart-panel.css">
-  <link rel="stylesheet" href="../assets/css/product.css">
+  <link rel="stylesheet" href="../assets/css/viewitems.css">
   <link rel="stylesheet" href="../assets/css/header.css">
 </head>
 <body>
@@ -24,39 +86,30 @@ include '../config/db.php';
 <main>
   <div class="product-top">
 
-    <!-- GALLERY -->
+   <!-- GALLERY -->
     <div class="gallery">
+
       <div class="thumbnails" id="thumbs">
-        <div class="thumb active" data-idx="0">
-          <img src="https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=200&q=80" alt="Laptop top view"/>
-        </div>
-        <div class="thumb" data-idx="1">
-          <img src="https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=200&q=80" alt="Laptop open"/>
-        </div>
-        <div class="thumb" data-idx="2">
-          <img src="https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=200&q=80" alt="Laptop side"/>
-        </div>
-        <div class="thumb" data-idx="3">
-          <img src="https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=200&q=80" alt="Laptop keyboard"/>
-        </div>
-        <div class="thumb" data-idx="4">
-          <img src="https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?w=200&q=80" alt="Laptop closed"/>
-        </div>
-        <div class="thumb" data-idx="5">
-          <img src="https://images.unsplash.com/photo-1484788984921-03950022c9ef?w=200&q=80" alt="Laptop desk"/>
-        </div>
+        <?php foreach ($images as $i => $img): ?>
+          <div class="thumb <?= $i === 0 ? 'active' : '' ?>" data-idx="<?= $i ?>">
+            <img src="<?= htmlspecialchars($img) ?>" alt="">
+          </div>
+        <?php endforeach; ?>
       </div>
+
       <div class="main-image">
         <img id="mainImg"
-          src="https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=700&q=85"
-          alt="Microsoft Lumia 640 XL" />
+            src="<?= htmlspecialchars($images[0]) ?>"
+            alt="<?= htmlspecialchars($product['name']) ?>" />
       </div>
+
     </div>
 
     <!-- INFO -->
     <div class="product-info">
-      <h1 class="product-title">Microsoft Lumia 640 XL RM-1065 8GB Dual SIM</h1>
-
+    <h1 class="product-title">
+      <?= htmlspecialchars($product['name']) ?>
+    </h1>
       <div class="product-meta">
         <div class="stars">
           <span class="star-icon">★</span><span class="star-icon">★</span>
@@ -105,8 +158,10 @@ include '../config/db.php';
       <!-- PRICE -->
       <div class="price-block">
         <div class="price-label">Price</div>
-        <div class="price" id="priceDisplay">$298.00</div>
-      </div>
+      <div class="price" id="priceDisplay" data-price="<?= (float)$product['price'] ?>">
+      ₱<?= number_format((float)$product['price'], 2) ?>
+    </div>     
+    </div>
 
       <!-- ACTIONS -->
       <div class="cta-row">
@@ -115,9 +170,6 @@ include '../config/db.php';
           Add to cart
         </button>
         <button class="btn-buy" id="buyNow">Buy now</button>
-        <button class="btn-wish" id="wishBtn" title="Wishlist">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-        </button>
       </div>
     </div>
   </div>
@@ -131,14 +183,108 @@ include '../config/db.php';
       <button class="tab-btn" data-tab="usage">Usage guide</button>
     </div>
     <div class="tab-content active" id="tab-description">
-      <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>
-      <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
-    </div>
-    <div class="tab-content" id="tab-reviews">
-      <p>⭐⭐⭐⭐⭐ — <strong>James D.</strong> – "Absolutely love this laptop. Fast, sleek, and the build quality is excellent. Highly recommend for anyone looking for a reliable machine."</p>
-      <p>⭐⭐⭐⭐ — <strong>Sarah M.</strong> – "Great value for the price. Battery life is impressive and the screen is crisp. Setup was easy."</p>
-      <p>⭐⭐⭐⭐ — <strong>Ali K.</strong> – "Good laptop overall. Arrived well-packaged and ahead of schedule. Performance is solid for everyday tasks."</p>
-    </div>
+    <p><?= htmlspecialchars($product['description']) ?></p>
+    </div>\
+  
+    
+   <div class="tab-content" id="tab-reviews">
+
+        <?php
+        $rRes = pg_query_params($conn,
+            "SELECT * FROM reviews WHERE product_id = $1 ORDER BY created_at DESC",
+            [$productId]
+        );
+
+        $reviews = [];
+        while ($r = pg_fetch_assoc($rRes)) {
+            $reviews[] = $r;
+        }
+
+        $totalReviews = count($reviews);
+        $initialLimit = 2; // unang ipapakita
+        ?>
+
+        <div class="review-list-container">
+          <?php if ($totalReviews > 0): ?>
+            <div class="review-list">
+              <?php 
+              // Ipakita yung first $initialLimit reviews
+              for ($i = 0; $i < min($initialLimit, $totalReviews); $i++): 
+                $r = $reviews[$i];
+              ?>
+                <div class="review-card">
+                  <div class="review-top">
+                    <div class="review-user"><?= htmlspecialchars($r['username'] ?? 'user_xxxxxx') ?></div>
+                    <div class="review-date"><?= date("M d, Y", strtotime($r['created_at'])) ?></div>
+                  </div>
+                  <div class="review-stars">
+                    <?php for ($s = 1; $s <= 5; $s++): ?>
+                      <span class="<?= $s <= $r['rating'] ? 'star-on' : 'star-off' ?>">★</span>
+                    <?php endfor; ?>
+                  </div>
+                  <div class="review-comment"><?= htmlspecialchars($r['comment']) ?></div>
+                </div>
+              <?php endfor; ?>
+            </div>
+
+            <?php if ($totalReviews > $initialLimit): ?>
+              <!-- Hidden additional reviews -->
+              <div class="more-reviews" id="moreReviews">
+                <?php for ($i = $initialLimit; $i < $totalReviews; $i++): 
+                  $r = $reviews[$i];
+                ?>
+                  <div class="review-card">
+                    <div class="review-top">
+                      <div class="review-user"><?= htmlspecialchars($r['username'] ?? 'user_xxxxxx') ?></div>
+                      <div class="review-date"><?= date("M d, Y", strtotime($r['created_at'])) ?></div>
+                    </div>
+                    <div class="review-stars">
+                      <?php for ($s = 1; $s <= 5; $s++): ?>
+                        <span class="<?= $s <= $r['rating'] ? 'star-on' : 'star-off' ?>">★</span>
+                      <?php endfor; ?>
+                    </div>
+                    <div class="review-comment"><?= htmlspecialchars($r['comment']) ?></div>
+                  </div>
+                <?php endfor; ?>
+              </div>
+
+              <!-- See More Button -->
+              <button class="see-more-link" id="seeMoreBtn">
+              <span>See more</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            <?php endif; ?>
+
+          <?php else: ?>
+            <p class="no-reviews">No reviews yet. Be the first to review this product.</p>
+          <?php endif; ?>
+        </div>
+
+        <!-- Review Form (same as before) -->
+       <form method="POST" class="review-form">
+        <!-- Rating field stays on top, compact -->
+        <div class="rating-field">
+          <label>Rating</label>
+          <select name="rating" required>
+            <option value="5">★★★★★</option>
+            <option value="4">★★★★☆</option>
+            <option value="3">★★★☆☆</option>
+            <option value="2">★★☆☆☆</option>
+            <option value="1">★☆☆☆☆</option>
+          </select>
+        </div>
+
+        <!-- Textarea + Submit button side by side -->
+        <div class="review-input-row">
+          <textarea name="comment" placeholder="Write your review..." required></textarea>
+          <button type="submit" class="submit-review-btn">Submit</button>
+        </div>
+      </form>
+
+      </div>
+   
     <div class="tab-content" id="tab-company">
       <p>We are a premium electronics retailer committed to delivering quality products directly to your door. Every item is sourced from verified manufacturers with a full warranty and dedicated customer support.</p>
       <p>Founded in 2015, our company has served over 500,000 customers worldwide, with a focus on transparency, fast delivery, and hassle-free returns.</p>

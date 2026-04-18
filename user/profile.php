@@ -1,60 +1,116 @@
 <?php
 session_start();
+
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
 }
 
+include '../config/db.php';
 include '../includes/header.php';
 include '../includes/cart-panel.php';
-include '../config/db.php';
 
 $user_id = $_SESSION['user_id'];
-
-// ✅ FIXED: match your actual DB structure
-$stmt = $conn->prepare("SELECT username, email, phone, birth_date, address FROM users WHERE id = ?");
-$stmt->bind_param("i", $user_id);
-$stmt->execute();
-$user = $stmt->get_result()->fetch_assoc();
-
 $tab = $_GET['tab'] ?? 'profile';
 
-// ✅ UPDATE PROFILE
+/* =========================
+   FETCH USER (POSTGRES)
+========================= */
+$userQuery = "SELECT username, email, phone, birth_date, address FROM users WHERE id = $1";
+$userResult = pg_query_params($conn, $userQuery, [$user_id]);
+
+$user = pg_fetch_assoc($userResult);
+
+/* =========================
+   UPDATE PROFILE
+========================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
-    $username = $_POST['username'];
-    $email    = $_POST['email'];
-    $phone    = $_POST['phone'];
-    $birth    = $_POST['birth_date'];
-    $address  = $_POST['address'];
 
-    $update = $conn->prepare("UPDATE users SET username=?, email=?, phone=?, birth_date=?, address=? WHERE id=?");
-    $update->bind_param("sssssi", $username, $email, $phone, $birth, $address, $user_id);
+    $username = $_POST['username'] ?? '';
+    $email    = $_POST['email'] ?? '';
+    $phone    = $_POST['phone'] ?? '';
+    $birth    = $_POST['birth_date'] ?? '';
+    $address  = $_POST['address'] ?? '';
 
-    if ($update->execute()) {
+    $updateQuery = "
+        UPDATE users 
+        SET username = $1, email = $2, phone = $3, birth_date = $4, address = $5 
+        WHERE id = $6
+    ";
+
+    $updateResult = pg_query_params($conn, $updateQuery, [
+        $username,
+        $email,
+        $phone,
+        $birth,
+        $address,
+        $user_id
+    ]);
+
+    if ($updateResult) {
         $success = "Profile updated!";
-        $stmt->execute();
-        $user = $stmt->get_result()->fetch_assoc();
+
+        // refresh data
+        $userResult = pg_query_params($conn, $userQuery, [$user_id]);
+        $user = pg_fetch_assoc($userResult);
     } else {
-        $error = "Update failed.";
+        $error = "Update failed: " . pg_last_error($conn);
     }
 }
 
-// ✅ FETCH ORDERS (FIXED QUERY)
+/* =========================
+   CHANGE PASSWORD
+========================= */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
+
+    $current = $_POST['current_password'] ?? '';
+    $new     = $_POST['new_password'] ?? '';
+    $confirm = $_POST['confirm_password'] ?? '';
+
+    // get current hashed password
+    $passQuery = "SELECT password FROM users WHERE id = $1";
+    $passResult = pg_query_params($conn, $passQuery, [$user_id]);
+    $row = pg_fetch_assoc($passResult);
+
+    if (!$row || !password_verify($current, $row['password'])) {
+        $passError = "Current password is incorrect.";
+    } elseif ($new !== $confirm) {
+        $passError = "New passwords do not match.";
+    } else {
+
+        $hashed = password_hash($new, PASSWORD_DEFAULT);
+
+        $updatePass = "UPDATE users SET password = $1 WHERE id = $2";
+        $passResult = pg_query_params($conn, $updatePass, [$hashed, $user_id]);
+
+        if ($passResult) {
+            $passSuccess = "Password updated successfully!";
+        } else {
+            $passError = "Failed to update password.";
+        }
+    }
+}
+
+/* =========================
+   FETCH ORDERS (POSTGRES)
+========================= */
 $orders = [];
-$orderQuery = $conn->prepare("
+
+$orderQuery = "
     SELECT o.id, o.total, o.status, o.created_at, p.name AS product_name
     FROM orders o
     JOIN order_items oi ON o.id = oi.order_id
     JOIN products p ON oi.product_id = p.id
-    WHERE o.user_id = ?
+    WHERE o.user_id = $1
     ORDER BY o.created_at DESC
-");
-$orderQuery->bind_param("i", $user_id);
-$orderQuery->execute();
-$res = $orderQuery->get_result();
+";
 
-while ($row = $res->fetch_assoc()) {
-    $orders[] = $row;
+$orderResult = pg_query_params($conn, $orderQuery, [$user_id]);
+
+if ($orderResult) {
+    while ($row = pg_fetch_assoc($orderResult)) {
+        $orders[] = $row;
+    }
 }
 ?>
 
@@ -109,43 +165,48 @@ while ($row = $res->fetch_assoc()) {
 
     <!-- ── Profile card ───────────────────────────────── -->
     <div class="account-card <?= $tab === 'profile' ? 'active' : '' ?>">
+
+     <?php if (isset($success)): ?>
+            <p style="color: green; margin-bottom:10px;"><?= $success ?></p>
+        <?php endif; ?>
+
+        <form method="POST">
+        <input type="hidden" name="update_profile" value="1">
+
         <h2 class="card-title">Personal Information</h2>
         <p class="card-subtitle">Update your personal details here.</p>
 
         <div class="form-grid">
             <div class="field">
-                <label class="field-label">First Name</label>
-                <input class="field-input" type="text" value="John" placeholder="First name">
-            </div>
-            <div class="field">
-                <label class="field-label">Last Name</label>
-                <input class="field-input" type="text" value="Doe" placeholder="Last name">
+                <label class="field-label">Username</label>
+                <input class="field-input" type="text" value="<?= htmlspecialchars($user['username'] ?? '') ?>" placeholder="First name">
             </div>
         </div>
         <div class="form-grid single">
             <div class="field">
                 <label class="field-label">Email Address</label>
-                <input class="field-input" type="email" value="johndoe@email.com">
+                <input class="field-input" type="email" value="<?= htmlspecialchars($user['email'] ?? '') ?>" placeholder="Email address">
             </div>
         </div>
         <div class="form-grid">
             <div class="field">
                 <label class="field-label">Phone Number</label>
-                <input class="field-input" type="tel" value="+63 912 345 6789">
+                <input class="field-input" type="tel" value="<?= htmlspecialchars($user['phone'] ?? '') ?>" placeholder="Phone number">
             </div>
             <div class="field">
                 <label class="field-label">Date of Birth</label>
-                <input class="field-input" type="date" value="1995-06-15">
+                <input class="field-input" type="date" value="<?= htmlspecialchars($user['birth_date'] ?? '') ?>" placeholder="Date of birth">
             </div>
         </div>
         <div class="form-grid single">
             <div class="field">
                 <label class="field-label">Delivery Address</label>
-                <input class="field-input" type="text" placeholder="Street, City, Province, ZIP">
+                <input class="field-input" type="text" value="<?= htmlspecialchars($user['address'] ?? '') ?>" placeholder="Street, City, Province, ZIP">
             </div>
         </div>
-        <button class="btn-save" onclick="toast('Profile updated!')">Save Changes</button>
-    </div>
+                <button class="btn-save" type="submit">Save Changes</button>
+        </form>
+        </div>
 
     <!-- ── Orders card ────────────────────────────────── -->
     <div class="account-card <?= $tab === 'orders' ? 'active' : '' ?>">
@@ -163,34 +224,21 @@ while ($row = $res->fetch_assoc()) {
                 </tr>
             </thead>
             <tbody>
-                <tr>
-                    <td>#ORD-482910</td>
-                    <td>MacBook Air M3</td>
-                    <td>Apr 10, 2025</td>
-                    <td>$298.00</td>
-                    <td><span class="badge badge-green">Delivered</span></td>
-                </tr>
-                <tr>
-                    <td>#ORD-391045</td>
-                    <td>Sony WH-1000XM5</td>
-                    <td>Mar 28, 2025</td>
-                    <td>$349.00</td>
-                    <td><span class="badge badge-blue">Processing</span></td>
-                </tr>
-                <tr>
-                    <td>#ORD-274831</td>
-                    <td>Dell XPS 15</td>
-                    <td>Feb 14, 2025</td>
-                    <td>$199.00</td>
-                    <td><span class="badge badge-green">Delivered</span></td>
-                </tr>
-                <tr>
-                    <td>#ORD-198204</td>
-                    <td>Lenovo ThinkPad X1</td>
-                    <td>Jan 5, 2025</td>
-                    <td>$499.00</td>
-                    <td><span class="badge badge-red">Cancelled</span></td>
-                </tr>
+            <?php foreach ($orders as $order): ?>
+            <tr>
+                <td>#ORD-<?= $order['id'] ?></td>
+                <td><?= htmlspecialchars($order['product_name']) ?></td>
+                <td><?= date("M d, Y", strtotime($order['created_at'])) ?></td>
+                <td>₱<?= number_format($order['total'], 2) ?></td>
+                <td>
+                    <span class="badge 
+                    <?= $order['status'] === 'Delivered' ? 'badge-green' : 
+                    ($order['status'] === 'Processing' ? 'badge-blue' : 'badge-red') ?>">
+                        <?= $order['status'] ?>
+                    </span>
+                </td>
+            </tr>
+            <?php endforeach; ?>
             </tbody>
         </table>
     </div>
@@ -200,25 +248,36 @@ while ($row = $res->fetch_assoc()) {
         <h2 class="card-title">Account Settings</h2>
         <p class="card-subtitle">Manage your password and preferences.</p>
 
-        <!-- Change password -->
-        <div class="section-title">Change Password</div>
+    <!-- Change password -->
+    <?php if (isset($passSuccess)): ?>
+            <p style="color:green;"><?= $passSuccess ?></p>
+        <?php endif; ?>
+
+        <?php if (isset($passError)): ?>
+            <p style="color:red;"><?= $passError ?></p>
+        <?php endif; ?>
+    <div class="section-title">Change Password</div>
+    <form method="POST">
+        <input type="hidden" name="change_password" value="1">
+
         <div class="form-grid single" style="margin-bottom:14px;">
             <div class="field">
                 <label class="field-label">Current Password</label>
-                <input class="field-input" type="password" placeholder="Enter current password">
+                <input class="field-input" type="password" name="current_password" placeholder="Enter current password">
             </div>
         </div>
         <div class="form-grid" style="margin-bottom:16px;">
             <div class="field">
                 <label class="field-label">New Password</label>
-                <input class="field-input" type="password" placeholder="New password">
+                <input class="field-input" type="password" name="new_password" placeholder="New password">
             </div>
             <div class="field">
                 <label class="field-label">Confirm Password</label>
-                <input class="field-input" type="password" placeholder="Confirm new password">
+                <input class="field-input" type="password" name="confirm_password" placeholder="Confirm new password">
             </div>
         </div>
-        <button class="btn-save" onclick="toast('Password updated!')">Update Password</button>
+        <button class="btn-save" type="submit">Update Password</button>
+    </form>
 
         <!-- Notifications -->
         <div class="section-gap">

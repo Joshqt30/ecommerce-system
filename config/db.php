@@ -1,12 +1,13 @@
 <?php
 $host = "localhost";
-$user = "root";
-$pass = "";
-$db   = "ecommerce_db";
+$port = "5432";
+$dbname = "ecommerce_db";
+$user = "postgres";
+$pass = "Joshpogi123";
 
-$conn = new mysqli($host, $user, $pass, $db);
+$conn = pg_connect("host=$host port=$port dbname=$dbname user=$user password=$pass");
 
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+if (!$conn) {
+    die("Connection failed: " . pg_last_error());
 }
 ?>

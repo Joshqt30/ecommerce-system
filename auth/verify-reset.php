@@ -5,14 +5,37 @@ require_once "../vendor/autoload.php";
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-if (!isset($_SESSION['reset_email']) || !isset($_SESSION['reset_otp'])) {
+/* =========================
+   SECURITY GUARD
+========================= */
+if (!isset($_SESSION['reset_email'], $_SESSION['reset_otp'])) {
     header("Location: reset-password.php");
     exit();
 }
 
 $email = $_SESSION['reset_email'];
 
-// ✅ SEND EMAIL
+/* =========================
+   OTP EXPIRATION (10 MIN LIMIT)
+========================= */
+if (!isset($_SESSION['reset_otp_time'])) {
+    $_SESSION['reset_otp_time'] = time();
+}
+
+if (time() - $_SESSION['reset_otp_time'] > 600) {
+    session_unset();
+    session_destroy();
+
+    echo "<script>
+        alert('OTP expired. Please request again.');
+        window.location.href='reset-password.php';
+    </script>";
+    exit();
+}
+
+/* =========================
+   SEND OTP EMAIL ONLY ONCE
+========================= */
 if (empty($_SESSION['reset_otp_sent'])) {
 
     $mail = new PHPMailer(true);
@@ -23,7 +46,7 @@ if (empty($_SESSION['reset_otp_sent'])) {
         $mail->SMTPAuth = true;
 
         $mail->Username = 'makers0358@gmail.com';
-        $mail->Password = 'plqdvmjsrtomputu'; // ⚠️ IMPORTANT
+        $mail->Password = 'plqdvmjsrtomputu';
 
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = 587;
@@ -40,28 +63,40 @@ if (empty($_SESSION['reset_otp_sent'])) {
         $_SESSION['reset_otp_sent'] = true;
 
     } catch (Exception $e) {
-        echo "Email failed: {$mail->ErrorInfo}";
+        error_log("Email failed: " . $mail->ErrorInfo);
     }
 }
 
-// ✅ VERIFY OTP
+/* =========================
+   VERIFY OTP
+========================= */
 if (isset($_POST['verify'])) {
 
-    $inputOtp =
-        $_POST['otp1'] .
-        $_POST['otp2'] .
-        $_POST['otp3'] .
-        $_POST['otp4'] .
-        $_POST['otp5'] .
-        $_POST['otp6'];
+    $inputs = [
+        $_POST['otp1'] ?? '',
+        $_POST['otp2'] ?? '',
+        $_POST['otp3'] ?? '',
+        $_POST['otp4'] ?? '',
+        $_POST['otp5'] ?? '',
+        $_POST['otp6'] ?? ''
+    ];
 
-    if ($inputOtp == $_SESSION['reset_otp']) {
-
-        header("Location: new-password.php");
-        exit();
-
+    // ensure no empty input
+    if (in_array('', $inputs, true)) {
+        echo "<script>alert('Please complete all OTP fields');</script>";
     } else {
-        echo "<script>alert('Invalid OTP');</script>";
+
+        $inputOtp = implode('', $inputs);
+
+        if ($inputOtp == $_SESSION['reset_otp']) {
+
+            // move to password reset step
+            header("Location: new-password.php");
+            exit();
+
+        } else {
+            echo "<script>alert('Invalid OTP');</script>";
+        }
     }
 }
 ?>

@@ -6,17 +6,21 @@ if (isset($_POST['reset'])) {
 
     $email = trim($_POST['email']);
 
-    $stmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
-    $stmt->bind_param("s", $email);
-    $stmt->execute();
-    $stmt->store_result();
+    /* =========================
+       CHECK EMAIL (POSTGRESQL)
+    ========================= */
+    $query = "SELECT id FROM users WHERE email = $1";
+    $result = pg_query_params($conn, $query, [$email]);
 
-    if ($stmt->num_rows > 0) {
+    if ($result && pg_num_rows($result) > 0) {
 
         $_SESSION['reset_email'] = $email;
 
-        // ✅ generate OTP
+        /* =========================
+           OTP GENERATION
+        ========================= */
         $_SESSION['reset_otp'] = rand(100000, 999999);
+        $_SESSION['reset_otp_time'] = time();
         $_SESSION['reset_otp_sent'] = false;
 
         header("Location: verify-reset.php");
@@ -25,8 +29,6 @@ if (isset($_POST['reset'])) {
     } else {
         echo "<script>alert('Email not found');</script>";
     }
-
-    $stmt->close();
 }
 ?>
 

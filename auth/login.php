@@ -2,7 +2,7 @@
 session_start();
 require_once "../config/db.php";
 
-// 🔥 FORCE CLEAR OLD SESSION WHEN ON LOGIN PAGE
+// Redirect if already logged in
 if (isset($_SESSION['user_id'])) {
     header("Location: ../user/dashboard.php");
     exit();
@@ -27,25 +27,24 @@ if (isset($_POST['login'])) {
     $username = trim($_POST['username']);
     $password = $_POST['password'];
 
-    // Prepare query
-    $stmt = $conn->prepare("SELECT id, username, password FROM users WHERE username = ?");
-    $stmt->bind_param("s", $username);
-    $stmt->execute();
+    // ✅ PostgreSQL prepared query
+    $query = "SELECT id, username, password FROM users WHERE username = $1";
+    $result = pg_query_params($conn, $query, array($username));
 
-    $result = $stmt->get_result();
+    if (!$result) {
+        die("Query failed: " . pg_last_error($conn));
+    }
 
-    if ($result->num_rows === 1) {
+    if (pg_num_rows($result) === 1) {
 
-        $user = $result->fetch_assoc();
+        $user = pg_fetch_assoc($result);
 
         // Verify password
         if (password_verify($password, $user['password'])) {
 
-            // Create session
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['username'] = $user['username'];
 
-            // Redirect to dashboard
             header("Location: ../user/dashboard.php");
             exit();
 
@@ -56,8 +55,6 @@ if (isset($_POST['login'])) {
     } else {
         echo "<script>alert('Username not found');</script>";
     }
-
-    $stmt->close();
 }
 ?>
 

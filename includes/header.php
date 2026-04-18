@@ -9,12 +9,12 @@ $user = null;
 if (isset($_SESSION['user_id'])) {
     $user_id = $_SESSION['user_id'];
 
-    $stmt = $conn->prepare("SELECT username, email FROM users WHERE id = ?");
-    $stmt->bind_param("i", $user_id);
-    $stmt->execute();
+    $query = "SELECT username, email FROM users WHERE id = $1";
+    $result = pg_query_params($conn, $query, [$user_id]);
 
-    $result = $stmt->get_result();
-    $user = $result->fetch_assoc();
+    if ($result && pg_num_rows($result) > 0) {
+        $user = pg_fetch_assoc($result);
+    }
 }
 ?>
  

@@ -1,10 +1,11 @@
 <?php
 session_start();
+include '../config/db.php';
 
 if (isset($_POST['register'])) {
 
-    $username = $_POST['username'];
-    $email = $_POST['email'];
+    $username = trim($_POST['username']);
+    $email = trim($_POST['email']);
     $password = $_POST['password'];
     $confirm = $_POST['confirm_password'];
 
@@ -12,12 +13,31 @@ if (isset($_POST['register'])) {
         echo "<script>alert('Passwords do not match');</script>";
     } else {
 
-        $_SESSION['reg_username'] = $username;
-        $_SESSION['reg_email'] = $email;
-        $_SESSION['reg_password'] = $password;
+        // ✅ Hash password (IMPORTANT)
+        $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
 
-        header("Location: confirm-register.php");
-        exit();
+        // ✅ Check if username/email already exists
+        $checkQuery = "SELECT id FROM users WHERE username = $1 OR email = $2";
+        $checkResult = pg_query_params($conn, $checkQuery, [$username, $email]);
+
+        if (pg_num_rows($checkResult) > 0) {
+            echo "<script>alert('Username or Email already exists');</script>";
+        } else {
+
+            // ✅ Insert into PostgreSQL
+            $insertQuery = "INSERT INTO users (username, email, password) VALUES ($1, $2, $3)";
+            $insertResult = pg_query_params($conn, $insertQuery, [
+                $username,
+                $email,
+                $hashedPassword
+            ]);
+
+            if ($insertResult) {
+                echo "<script>alert('Registration successful'); window.location.href='login.php';</script>";
+            } else {
+                echo "<script>alert('Registration failed');</script>";
+            }
+        }
     }
 }
 ?>
