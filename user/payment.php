@@ -1,25 +1,41 @@
 <?php
+session_start();
 include '../config/db.php';
+
+// Redirect if not logged in
+if (!isset($_SESSION['user_id'])) {
+    header('Location: ../auth/login.php');
+    exit;
+}
+
+$userId = $_SESSION['user_id'];
+
+// Base image path
+define('PRODUCT_IMGS_BASE', '/ecommerce-system/imgs/products/');
+
+// Shipping details from previous step (passed via session or GET)
+// We'll store them in session when coming from checkout
+$shipping = $_SESSION['shipping_details'] ?? [];
 ?>
-
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Checkout – Payment</title>
+  <title>Payment – E‑Commerce</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../assets/css/payment.css">
+  <style>
+    /* Copy all your existing payment.css styles here, then we'll add/modify */
+    <?php echo file_get_contents('../assets/css/payment.css'); ?>
+  </style>
 </head>
 <body class="min-h-screen py-12">
 
 <div class="max-w-6xl mx-auto px-6">
   <div class="flex gap-8">
 
-    <!-- ── LEFT: Order Summary ─────────────────────── -->
+    <!-- LEFT: Order Summary (dynamic) -->
     <div class="w-5/12 bg-white rounded-2xl shadow-sm p-8" style="height:fit-content;">
       <div class="flex items-center gap-3 mb-8">
         <button onclick="history.back()"
@@ -29,297 +45,285 @@ include '../config/db.php';
         <h2 class="text-2xl font-semibold text-gray-800">Order Summary</h2>
       </div>
 
-      <!-- Product -->
-      <div class="flex gap-4 border border-gray-200 rounded-xl p-4 mb-6" id="productCard">
-        <img src="https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=200&q=80"
-             alt="Laptop" class="w-24 h-16 object-contain bg-gray-50 rounded-lg flex-shrink-0">
-        <div class="flex-1">
-          <p class="font-medium text-sm leading-snug text-gray-800">
-            Microsoft Lumia 640 XL RM-1065<br>8GB Dual Sim
-          </p>
-          <div class="mt-3 flex items-center justify-between">
-            <div class="flex items-center border border-gray-300 rounded-lg overflow-hidden">
-              <button onclick="changeQty(-1)" class="w-8 h-8 flex items-center justify-center text-lg hover:bg-gray-100 text-gray-600 transition">−</button>
-              <span id="qty" class="w-10 text-center text-sm font-semibold">1</span>
-              <button onclick="changeQty(1)"  class="w-8 h-8 flex items-center justify-center text-lg hover:bg-gray-100 text-gray-600 transition">+</button>
-            </div>
-            <span id="itemPrice" class="font-semibold text-gray-800">$298.00</span>
-          </div>
-        </div>
-        <button onclick="removeItem()" class="text-gray-300 hover:text-red-400 transition self-start">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-            <path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-          </svg>
-        </button>
-      </div>
-
-      <!-- Discount -->
-      <div class="flex gap-3 mb-6">
-        <input type="text" id="discountInput" placeholder="Gift Card / Discount code"
-               class="flex-1 border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-400 transition">
-        <button onclick="applyDiscount()"
-                class="bg-indigo-500 hover:bg-indigo-600 text-white px-6 rounded-xl font-medium text-sm transition">Apply</button>
-      </div>
+      <div id="cartItemsContainer"></div>
 
       <!-- Totals -->
-      <div class="space-y-3 text-sm">
+      <div class="space-y-3 text-sm mt-4">
         <div class="flex justify-between text-gray-500">
-          <span>Subtotal</span><span id="subtotal" class="font-medium text-gray-700">$298.00</span>
+          <span>Subtotal</span><span id="subtotal" class="font-medium text-gray-700">₱0.00</span>
         </div>
         <div class="flex justify-between text-gray-500">
           <span>Shipping Fee</span><span id="shippingLabel" class="font-medium text-green-600">FREE</span>
         </div>
         <div class="flex justify-between pt-4 border-t border-gray-200 text-base">
           <span class="font-semibold text-gray-800">Total due</span>
-          <span id="total" class="font-semibold text-indigo-600">$298.00</span>
+          <span id="total" class="font-semibold text-indigo-600">₱0.00</span>
         </div>
       </div>
     </div>
 
-    <!-- ── RIGHT: Payment Methods ─────────────────── -->
+    <!-- RIGHT: Payment Methods -->
     <div class="w-7/12 bg-white rounded-2xl shadow-sm p-8">
 
       <!-- Progress Steps -->
       <div class="flex items-center mb-10">
         <div class="flex items-center gap-2">
-          <div class="step-dot done">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          </div>
+          <div class="step-dot done"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
           <span class="text-sm font-medium text-indigo-500">Shipping</span>
         </div>
         <div class="step-line done"></div>
-        <div class="flex items-center gap-2">
-          <div class="step-dot done">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          </div>
-          <span class="text-sm font-medium text-indigo-500">Delivery</span>
-        </div>
+       
         <div class="step-line done"></div>
         <div class="flex items-center gap-2">
-          <div class="step-dot active">
-            <svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="3" fill="#6366f1"/></svg>
-          </div>
+          <div class="step-dot active"><svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="3" fill="#6366f1"/></svg></div>
           <span class="text-sm font-semibold text-indigo-600">Payment</span>
         </div>
       </div>
 
+      <!-- Secure Checkout Badge -->
+      <div class="flex items-center justify-end mb-2 text-gray-500 text-xs">
+          <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+          </svg>
+          <span>SSL Secure • 256-bit Encryption</span>
+      </div>
+
       <h3 class="text-lg font-semibold text-gray-800 mb-5">Payment Methods</h3>
 
-      <!-- ── Option 1: Pay on Delivery ── -->
-      <label class="payment-option selected" id="opt-pod" onclick="selectMethod('pod')">
-        <div class="flex gap-3">
-          <input type="radio" name="payment" value="pod" checked>
-          <div>
-            <p class="font-medium text-sm text-gray-800">Pay on Delivery</p>
-            <p class="text-xs text-gray-400 mt-0.5">Pay with cash on delivery</p>
+      <form id="paymentForm" method="POST" action="../includes/process-payment.php">
+        <input type="hidden" name="cart_data" id="cartDataInput">
+        <input type="hidden" name="shipping_data" value="<?= htmlspecialchars(json_encode($shipping)) ?>">
+
+        <!-- Option 1: Cash on Delivery (COD) -->
+        <label class="payment-option selected" id="opt-cod" onclick="selectMethod('cod')">
+          <div class="flex gap-3">
+            <input type="radio" name="payment_method" value="cod" checked>
+            <div>
+              <p class="font-medium text-sm text-gray-800">Cash on Delivery (COD)</p>
+              <p class="text-xs text-gray-400 mt-0.5">Pay with cash when your order arrives</p>
+            </div>
           </div>
-        </div>
-      </label>
+        </label>
 
-      <!-- ── Option 2: Credit/Debit Cards ── -->
-      <div class="payment-option" id="opt-card" onclick="selectMethod('card')">
-        <div class="flex gap-3 flex-1 min-w-0">
-          <input type="radio" name="payment" value="card" style="margin-top:2px; flex-shrink:0;">
-          <div class="flex-1 min-w-0">
-            <p class="font-medium text-sm text-gray-800">Credit/Debit Cards</p>
-            <p class="text-xs text-gray-400 mt-0.5">Pay with your Credit / Debit Card</p>
-
-            <!-- Card sub-form -->
-            <div class="sub-form" id="cardForm">
-              <!-- Card number -->
-              <div class="input-wrap">
-                <span class="input-icon">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-                </span>
-                <input class="sub-input" type="text" placeholder="Card number" maxlength="19" oninput="formatCard(this)">
-              </div>
-              <!-- MM/YY + CVV -->
-              <div style="display:flex; gap:10px;">
-                <div class="input-wrap" style="flex:1; margin-bottom:0;">
-                  <span class="input-icon">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                  </span>
-                  <input class="sub-input" type="text" placeholder="MM / YY" maxlength="7" oninput="formatExpiry(this)">
-                </div>
-                <div class="input-wrap" style="flex:1; margin-bottom:0;">
-                  <span class="input-icon">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                  </span>
-                  <input class="sub-input" type="text" placeholder="CVV" maxlength="4">
+        <!-- Option 2: GCash -->
+        <label class="payment-option" id="opt-gcash" onclick="selectMethod('gcash')">
+          <div class="flex gap-3 flex-1">
+            <input type="radio" name="payment_method" value="gcash">
+            <div class="flex-1">
+              <p class="font-medium text-sm text-gray-800">GCash</p>
+              <p class="text-xs text-gray-400 mt-0.5">Pay using your GCash wallet</p>
+              <div class="sub-form" id="gcashForm">
+                <div class="input-wrap">
+                  <span class="input-icon">📱</span>
+                  <input class="sub-input" type="tel" name="gcash_number" placeholder="GCash mobile number (09xxxxxxxxx)" maxlength="11">
                 </div>
               </div>
             </div>
           </div>
-        </div>
-        <!-- Card brand icons -->
-        <div class="flex gap-1.5 flex-shrink-0 mt-1 ml-2">
-          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Visa_Inc._logo.svg/200px-Visa_Inc._logo.svg.png" alt="Visa" class="h-5 w-auto object-contain">
-          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/200px-Mastercard-logo.svg.png" alt="Mastercard" class="h-5 w-auto object-contain">
-          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/American_Express_logo_%282018%29.svg/200px-American_Express_logo_%282018%29.svg.png" alt="Amex" class="h-5 w-auto object-contain">
-        </div>
-      </div>
+          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/fc/GCash_logo.svg/200px-GCash_logo.svg.png" alt="GCash" class="h-6">
+        </label>
 
-      <!-- ── Option 3: Direct Bank Transfer ── -->
-      <div class="payment-option" id="opt-bank" onclick="selectMethod('bank')">
-        <div class="flex gap-3 flex-1 min-w-0">
-          <input type="radio" name="payment" value="bank" style="margin-top:2px; flex-shrink:0;">
-          <div class="flex-1 min-w-0">
-            <p class="font-medium text-sm text-gray-800">Direct Bank Transfer</p>
-            <p class="text-xs text-gray-400 mt-0.5">Make payment directly through bank account.</p>
-
-            <!-- Bank sub-form -->
-            <div class="sub-form" id="bankForm">
-              <div class="input-wrap">
-                <span class="input-icon">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>
-                </span>
-                <input class="sub-input" type="text" placeholder="Bank name">
-              </div>
-              <div class="input-wrap">
-                <span class="input-icon">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-                </span>
-                <input class="sub-input" type="text" placeholder="Account number" maxlength="20">
-              </div>
-              <div class="input-wrap" style="margin-bottom:0;">
-                <span class="input-icon">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                </span>
-                <input class="sub-input" type="text" placeholder="Account holder name">
+        <!-- Option 3: Maya -->
+        <label class="payment-option" id="opt-maya" onclick="selectMethod('maya')">
+          <div class="flex gap-3 flex-1">
+            <input type="radio" name="payment_method" value="maya">
+            <div class="flex-1">
+              <p class="font-medium text-sm text-gray-800">Maya</p>
+              <p class="text-xs text-gray-400 mt-0.5">Pay with your Maya account</p>
+              <div class="sub-form" id="mayaForm">
+                <div class="input-wrap">
+                  <span class="input-icon">📱</span>
+                  <input class="sub-input" type="tel" name="maya_number" placeholder="Maya registered mobile number">
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
+          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/Maya_%28Philippines%29_logo.svg/200px-Maya_%28Philippines%29_logo.svg.png" alt="Maya" class="h-6">
+        </label>
 
-      <!-- ── Option 4: Other Payment Methods ── -->
-      <div class="payment-option" id="opt-other" onclick="selectMethod('other')">
-        <div class="flex gap-3 flex-1 min-w-0">
-          <input type="radio" name="payment" value="other" style="margin-top:2px; flex-shrink:0;">
-          <div class="flex-1 min-w-0">
-            <p class="font-medium text-sm text-gray-800">Other Payment Methods</p>
-            <p class="text-xs text-gray-400 mt-0.5">Make payment through Gpay, Paypal, Paytm etc.</p>
-
-            <!-- Other sub-form: provider tabs + dynamic input -->
-            <div class="sub-form" id="otherForm">
-
-              <!-- Provider selector -->
-              <div class="provider-tabs" id="providerTabs">
-                <button class="provider-tab active" data-provider="gcash" onclick="selectProvider(event,'gcash')">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="5" fill="#007aff"/><text x="3" y="17" font-size="8" font-weight="700" fill="#fff" font-family="Arial">GC</text></svg>
-                  GCash
-                </button>
-                <button class="provider-tab" data-provider="paypal" onclick="selectProvider(event,'paypal')">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="5" fill="#003087"/><text x="3" y="17" font-size="7" font-weight="700" fill="#fff" font-family="Arial">PP</text></svg>
-                  PayPal
-                </button>
-                <button class="provider-tab" data-provider="gpay" onclick="selectProvider(event,'gpay')">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="5" fill="#fff" stroke="#e5e7eb"/><text x="2" y="17" font-size="9" font-weight="700" font-family="Arial"><tspan fill="#4285f4">G</tspan><tspan fill="#34a853">P</tspan></text></svg>
-                  GPay
-                </button>
-                <button class="provider-tab" data-provider="paytm" onclick="selectProvider(event,'paytm')">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="5" fill="#00baf2"/><text x="2" y="17" font-size="7" font-weight="700" fill="#fff" font-family="Arial">PT</text></svg>
-                  Paytm
-                </button>
-              </div>
-
-              <!-- GCash -->
-              <div class="provider-panel open" id="panel-gcash">
+        <!-- Option 4: Bank Transfer (BDO/BPI) -->
+        <label class="payment-option" id="opt-bank" onclick="selectMethod('bank')">
+          <div class="flex gap-3 flex-1">
+            <input type="radio" name="payment_method" value="bank">
+            <div class="flex-1">
+              <p class="font-medium text-sm text-gray-800">Bank Transfer</p>
+              <p class="text-xs text-gray-400 mt-0.5">BDO, BPI, Metrobank, etc.</p>
+              <div class="sub-form" id="bankForm">
+                <select name="bank_name" class="sub-input mb-2">
+                  <option value="">Select Bank</option>
+                  <option>BDO</option>
+                  <option>BPI</option>
+                  <option>Metrobank</option>
+                  <option>Landbank</option>
+                  <option>UnionBank</option>
+                </select>
                 <div class="input-wrap">
-                  <span class="input-icon">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 11.45 18a19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 3.18 2 2 0 0 1 4.11 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 8.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                  </span>
-                  <input class="sub-input" type="tel" placeholder="GCash mobile number (e.g. 09xxxxxxxxx)" maxlength="11">
+                  <span class="input-icon">🔢</span>
+                  <input class="sub-input" type="text" name="account_number" placeholder="Account number">
                 </div>
-              </div>
-
-              <!-- PayPal -->
-              <div class="provider-panel" id="panel-paypal">
                 <div class="input-wrap">
-                  <span class="input-icon">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                  </span>
-                  <input class="sub-input" type="email" placeholder="PayPal email address">
+                  <span class="input-icon">👤</span>
+                  <input class="sub-input" type="text" name="account_name" placeholder="Account holder name">
                 </div>
               </div>
-
-              <!-- GPay -->
-              <div class="provider-panel" id="panel-gpay">
-                <div class="input-wrap">
-                  <span class="input-icon">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 11.45 18a19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 3.18 2 2 0 0 1 4.11 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 8.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                  </span>
-                  <input class="sub-input" type="tel" placeholder="GPay registered phone number">
-                </div>
-              </div>
-
-              <!-- Paytm -->
-              <div class="provider-panel" id="panel-paytm">
-                <div class="input-wrap" style="margin-bottom:0;">
-                  <span class="input-icon">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 11.45 18a19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 3.18 2 2 0 0 1 4.11 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 8.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                  </span>
-                  <input class="sub-input" type="tel" placeholder="Paytm registered phone number">
-                </div>
-              </div>
-
-            </div><!-- /otherForm -->
+            </div>
           </div>
-        </div>
-        <!-- Other icons -->
-        <div class="flex gap-1.5 flex-shrink-0 mt-1 ml-2 flex-wrap justify-end" style="max-width:110px;">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="5" fill="#007aff"/><text x="3" y="17" font-size="8" font-weight="700" fill="#fff" font-family="Arial">GC</text></svg>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="5" fill="#003087"/><text x="3" y="17" font-size="7" font-weight="700" fill="#fff" font-family="Arial">PP</text></svg>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="5" fill="#fff" stroke="#e5e7eb"/><text x="2" y="17" font-size="9" font-weight="700" font-family="Arial"><tspan fill="#4285f4">G</tspan><tspan fill="#34a853">P</tspan></text></svg>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="5" fill="#00baf2"/><text x="2" y="17" font-size="7" font-weight="700" fill="#fff" font-family="Arial">PT</text></svg>
-        </div>
-      </div>
+        </label>
 
-      <!-- Actions -->
-      <div class="flex gap-4 mt-8">
-        <button onclick="history.back()"
-                class="flex-none px-8 py-3 border border-gray-300 rounded-xl text-gray-700 font-medium text-sm hover:bg-gray-50 transition">
-          Back
-        </button>
-        <button onclick="confirmPayment()"
+        <!-- Option 5: Credit/Debit Card -->
+        <label class="payment-option" id="opt-card" onclick="selectMethod('card')">
+          <div class="flex gap-3 flex-1">
+            <input type="radio" name="payment_method" value="card">
+            <div class="flex-1">
+              <p class="font-medium text-sm text-gray-800">Credit/Debit Card</p>
+              <p class="text-xs text-gray-400 mt-0.5">Visa, Mastercard, JCB</p>
+              <div class="sub-form" id="cardForm">
+                <div class="input-wrap">
+                  <span class="input-icon">💳</span>
+                  <input class="sub-input" type="text" name="card_number" placeholder="Card number" maxlength="19" oninput="formatCard(this)">
+                </div>
+                <div style="display:flex; gap:10px;">
+                  <div class="input-wrap" style="flex:1;">
+                    <input class="sub-input" type="text" name="expiry" placeholder="MM / YY" maxlength="7" oninput="formatExpiry(this)">
+                  </div>
+                  <div class="input-wrap" style="flex:1;">
+                    <input class="sub-input" type="text" name="cvv" placeholder="CVV" maxlength="4">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex gap-1">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg" class="h-5">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" class="h-5">
+          </div>
+        </label>
+
+        <!-- Actions -->
+        <div class="flex gap-4 mt-8">
+          <button type="button" onclick="history.back()"
+                  class="flex-none px-8 py-3 border border-gray-300 rounded-xl text-gray-700 font-medium text-sm hover:bg-gray-50 transition">
+            Back
+          </button>
+         <button type="submit" id="confirmPaymentBtn"
                 class="flex-1 bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition text-sm">
-          Confirm Payment
+          <span id="btnText">Confirm Payment</span>
+          <svg id="btnSpinner" class="hidden animate-spin ml-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
         </button>
-      </div>
+        </div>
+      </form>
 
     </div><!-- /right -->
   </div>
 </div>
 
-<!-- ── Confirm Modal ───────────────────────────────── -->
+<!-- Modal (same as before) -->
 <div class="modal-overlay" id="confirmModal">
   <div class="modal-box">
     <div class="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-5">
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
     </div>
     <h2 class="text-xl font-bold text-gray-800 mb-2">Order Confirmed!</h2>
-    <p class="text-sm text-gray-500 mb-6">Thank you for your purchase. Your order is being processed.</p>
-    <div class="bg-gray-50 rounded-xl p-4 mb-6 text-sm text-left space-y-2">
-      <div class="flex justify-between"><span class="text-gray-500">Order #</span><span class="font-semibold text-gray-800" id="orderNum">–</span></div>
-      <div class="flex justify-between"><span class="text-gray-500">Payment</span><span class="font-semibold text-gray-800" id="paymentMethod">–</span></div>
-      <div class="flex justify-between"><span class="text-gray-500">Total paid</span><span class="font-semibold text-indigo-600" id="modalTotal">–</span></div>
-    </div>
-    <button onclick="closeModal()"
+    <p class="text-sm text-gray-500 mb-6">Thank you for your purchase.</p>
+    <button onclick="window.location.href='order_success.php?id=' + orderId"
             class="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-3 rounded-xl transition text-sm">
-      Back to Shop
+      View Order
     </button>
   </div>
 </div>
 
 <!-- Toast -->
 <div class="toast" id="toast">
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
   <span id="toastMsg"></span>
 </div>
 
-<script src="../scripts/payment.js">
-</script>
+<script>
+  const PRODUCT_IMGS_BASE = '/ecommerce-system/imgs/products/';
+  let cart = JSON.parse(localStorage.getItem('ecommerce_cart') || '[]');
+  
+  // Redirect if cart empty
+  if (cart.length === 0) {
+    window.location.href = 'cart.php';
+  }
 
+  // Populate hidden input
+  document.getElementById('cartDataInput').value = JSON.stringify(cart);
+
+  // Render cart items
+  function renderCart() {
+    const container = document.getElementById('cartItemsContainer');
+    let subtotal = 0;
+    let html = '';
+    cart.forEach((item, idx) => {
+      const itemTotal = item.price * item.quantity;
+      subtotal += itemTotal;
+      html += `
+        <div class="flex gap-4 border border-gray-200 rounded-xl p-4 mb-4">
+          <img src="${PRODUCT_IMGS_BASE}${item.image}" class="w-24 h-16 object-contain bg-gray-50 rounded-lg">
+          <div class="flex-1">
+            <p class="font-medium text-sm">${item.name}</p>
+            <div class="mt-2 flex justify-between">
+              <span>Qty: ${item.quantity}</span>
+              <span class="font-semibold">₱${itemTotal.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    container.innerHTML = html;
+    document.getElementById('subtotal').textContent = `₱${subtotal.toFixed(2)}`;
+    document.getElementById('total').textContent = `₱${subtotal.toFixed(2)}`;
+  }
+
+  // Payment method selection (show/hide sub-forms)
+  function selectMethod(method) {
+    document.querySelectorAll('.payment-option').forEach(el => el.classList.remove('selected'));
+    document.getElementById('opt-' + method).classList.add('selected');
+    document.querySelectorAll('input[name="payment_method"]').forEach(r => r.checked = (r.value === method));
+    
+    // Hide all sub-forms
+    document.querySelectorAll('.sub-form').forEach(f => f.classList.remove('open'));
+    const form = document.getElementById(method + 'Form');
+    if (form) form.classList.add('open');
+  }
+
+  // Card formatting
+  function formatCard(input) {
+    let v = input.value.replace(/\D/g, '').substring(0,16);
+    input.value = v.replace(/(.{4})/g, '$1 ').trim();
+  }
+  function formatExpiry(input) {
+    let v = input.value.replace(/\D/g, '').substring(0,4);
+    if (v.length >= 3) v = v.substring(0,2) + ' / ' + v.substring(2);
+    input.value = v;
+  }
+
+  // Toast
+  function showToast(msg) {
+    const el = document.getElementById('toast');
+    document.getElementById('toastMsg').textContent = msg;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 2600);
+  }
+
+  document.getElementById('paymentForm').addEventListener('submit', function(e) {
+  const btn = document.getElementById('confirmPaymentBtn');
+  const btnText = document.getElementById('btnText');
+  const spinner = document.getElementById('btnSpinner');
+  
+  btn.disabled = true;
+  btn.classList.add('opacity-70', 'cursor-not-allowed');
+  btnText.textContent = 'Processing...';
+  spinner.classList.remove('hidden');
+});
+
+  // Initialize
+  renderCart();
+  selectMethod('cod');
+</script>
 </body>
 </html>

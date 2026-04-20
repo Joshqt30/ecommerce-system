@@ -97,21 +97,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
 $orders = [];
 
 $orderQuery = "
-    SELECT o.id, o.total, o.status, o.created_at, p.name AS product_name
+    SELECT o.id, o.total, o.status, o.created_at,
+           oi.variant_id, oi.product_name, oi.quantity, oi.price, oi.image_url
     FROM orders o
-    JOIN order_items oi ON o.id = oi.order_id
-    JOIN products p ON oi.product_id = p.id
+    LEFT JOIN order_items oi ON o.id = oi.order_id
     WHERE o.user_id = $1
-    ORDER BY o.created_at DESC
+    ORDER BY o.created_at DESC, o.id DESC
 ";
 
 $orderResult = pg_query_params($conn, $orderQuery, [$user_id]);
 
 if ($orderResult) {
     while ($row = pg_fetch_assoc($orderResult)) {
-        $orders[] = $row;
+        $orderId = $row['id'];
+        if (!isset($orders[$orderId])) {
+            $orders[$orderId] = [
+                'id'         => $row['id'],
+                'total'      => $row['total'],
+                'status'     => $row['status'],
+                'created_at' => $row['created_at'],
+                'items'      => []
+            ];
+        }
+        // Add item if exists
+        if ($row['product_name']) {
+            $orders[$orderId]['items'][] = [
+                'variant_id' => $row['variant_id'],
+                'name'       => $row['product_name'],
+                'quantity'   => $row['quantity'],
+                'price'      => $row['price'],
+                'image'      => $row['image_url']
+            ];
+        }
     }
 }
+// Re-index to simple array
+$orders = array_values($orders);
 ?>
 
 <!doctype html>
@@ -209,39 +230,59 @@ if ($orderResult) {
         </div>
 
     <!-- ── Orders card ────────────────────────────────── -->
-    <div class="account-card <?= $tab === 'orders' ? 'active' : '' ?>">
-        <h2 class="card-title">My Orders</h2>
-        <p class="card-subtitle">Your recent order history.</p>
+        <div class="account-card <?= $tab === 'orders' ? 'active' : '' ?>">
+            <h2 class="card-title">My Orders</h2>
+            <p class="card-subtitle">Your recent order history.</p>
 
-        <table class="orders-table">
-            <thead>
-                <tr>
-                    <th>Order #</th>
-                    <th>Product</th>
-                    <th>Date</th>
-                    <th>Total</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody>
-            <?php foreach ($orders as $order): ?>
-            <tr>
-                <td>#ORD-<?= $order['id'] ?></td>
-                <td><?= htmlspecialchars($order['product_name']) ?></td>
-                <td><?= date("M d, Y", strtotime($order['created_at'])) ?></td>
-                <td>₱<?= number_format($order['total'], 2) ?></td>
-                <td>
-                    <span class="badge 
-                    <?= $order['status'] === 'Delivered' ? 'badge-green' : 
-                    ($order['status'] === 'Processing' ? 'badge-blue' : 'badge-red') ?>">
-                        <?= $order['status'] ?>
-                    </span>
-                </td>
-            </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
-    </div>
+            <?php if (empty($orders)): ?>
+                <div class="no-orders">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.5">
+                        <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+                        <line x1="3" y1="6" x2="21" y2="6"/>
+                        <path d="M16 10a4 4 0 01-8 0"/>
+                    </svg>
+                    <p>You haven't placed any orders yet.</p>
+                    <a href="dashboard.php" class="btn-shop">Start Shopping</a>
+                </div>
+            <?php else: ?>
+                <div class="orders-list">
+                    <?php foreach ($orders as $order): ?>
+                        <div class="order-card">
+                            <div class="order-header">
+                                <div class="order-info">
+                                    <span class="order-id">Order #<?= $order['id'] ?></span>
+                                    <span class="order-date"><?= date("M d, Y", strtotime($order['created_at'])) ?></span>
+                                </div>
+                                <div class="order-meta">
+                                    <span class="badge <?= $order['status'] === 'delivered' ? 'badge-green' : ($order['status'] === 'pending' ? 'badge-yellow' : 'badge-blue') ?>">
+                                        <?= ucfirst(htmlspecialchars($order['status'])) ?>
+                                    </span>
+                                    <span class="order-total">₱<?= number_format($order['total'], 2) ?></span>
+                                </div>
+                            </div>
+                            <div class="order-items">
+                                <?php foreach ($order['items'] as $item): ?>
+                                    <div class="order-item">
+                                        <img src="/ecommerce-system/imgs/products/<?= htmlspecialchars($item['image']) ?>" 
+                                            alt="<?= htmlspecialchars($item['name']) ?>" 
+                                            class="order-item-img">
+                                        <div class="order-item-details">
+                                            <span class="order-item-name"><?= htmlspecialchars($item['name']) ?></span>
+                                            <span class="order-item-meta">
+                                                Qty: <?= $item['quantity'] ?> × ₱<?= number_format($item['price'], 2) ?>
+                                            </span>
+                                        </div>
+                                        <span class="order-item-total">
+                                            ₱<?= number_format($item['price'] * $item['quantity'], 2) ?>
+                                        </span>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </div>
 
     <!-- ── Settings card ──────────────────────────────── -->
     <div class="account-card <?= $tab === 'settings' ? 'active' : '' ?>">
