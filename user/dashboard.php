@@ -137,10 +137,10 @@ include '../config/db.php';
         <img src="https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=160&q=75" alt="Cameras" />
         <span class="subcategory-title">Cameras</span>
     </a>
-   <a href="../user/category.php?cat=All" class="item-subcategory" style="text-decoration: none; color: inherit;">
-        <img src="https://images.unsplash.com/photo-1491553895911-0055eca6402d?w=160&q=75" alt="Others" />
-        <span class="subcategory-title">Others</span>
-    </a>
+        <a href="../user/category.php?cat=All" class="item-subcategory" style="text-decoration: none; color: inherit;">
+        <img src="https://www.swagify.com/blog/wp-content/uploads/2024/09/image-41.jpeg" alt="All categories" />            
+        <span class="subcategory-title">All</span>
+        </a>
 </section>
 
     <!-- Toast Notification -->

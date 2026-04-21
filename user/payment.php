@@ -13,8 +13,7 @@ $userId = $_SESSION['user_id'];
 // Base image path
 define('PRODUCT_IMGS_BASE', '/ecommerce-system/imgs/products/');
 
-// Shipping details from previous step (passed via session or GET)
-// We'll store them in session when coming from checkout
+// Shipping details from previous step (passed via session)
 $shipping = $_SESSION['shipping_details'] ?? [];
 ?>
 <!DOCTYPE html>
@@ -26,7 +25,7 @@ $shipping = $_SESSION['shipping_details'] ?? [];
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    /* Copy all your existing payment.css styles here, then we'll add/modify */
+    /* Keep your existing payment.css styles */
     <?php echo file_get_contents('../assets/css/payment.css'); ?>
   </style>
 </head>
@@ -35,7 +34,7 @@ $shipping = $_SESSION['shipping_details'] ?? [];
 <div class="max-w-6xl mx-auto px-6">
   <div class="flex gap-8">
 
-    <!-- LEFT: Order Summary (dynamic) -->
+    <!-- LEFT: Order Summary -->
     <div class="w-5/12 bg-white rounded-2xl shadow-sm p-8" style="height:fit-content;">
       <div class="flex items-center gap-3 mb-8">
         <button onclick="history.back()"
@@ -45,7 +44,9 @@ $shipping = $_SESSION['shipping_details'] ?? [];
         <h2 class="text-2xl font-semibold text-gray-800">Order Summary</h2>
       </div>
 
-      <div id="cartItemsContainer"></div>
+      <div id="cartItemsContainer">
+        <div class="text-center py-8 text-gray-500">Loading cart...</div>
+      </div>
 
       <!-- Totals -->
       <div class="space-y-3 text-sm mt-4">
@@ -72,8 +73,6 @@ $shipping = $_SESSION['shipping_details'] ?? [];
           <span class="text-sm font-medium text-indigo-500">Shipping</span>
         </div>
         <div class="step-line done"></div>
-       
-        <div class="step-line done"></div>
         <div class="flex items-center gap-2">
           <div class="step-dot active"><svg width="10" height="10" viewBox="0 0 10 10"><circle cx="5" cy="5" r="3" fill="#6366f1"/></svg></div>
           <span class="text-sm font-semibold text-indigo-600">Payment</span>
@@ -91,10 +90,10 @@ $shipping = $_SESSION['shipping_details'] ?? [];
       <h3 class="text-lg font-semibold text-gray-800 mb-5">Payment Methods</h3>
 
       <form id="paymentForm" method="POST" action="../includes/process-payment.php">
-        <input type="hidden" name="cart_data" id="cartDataInput">
+        <input type="hidden" name="cart_data" id="cartDataInput" value="">
         <input type="hidden" name="shipping_data" value="<?= htmlspecialchars(json_encode($shipping)) ?>">
 
-        <!-- Option 1: Cash on Delivery (COD) -->
+        <!-- Option 1: COD -->
         <label class="payment-option selected" id="opt-cod" onclick="selectMethod('cod')">
           <div class="flex gap-3">
             <input type="radio" name="payment_method" value="cod" checked>
@@ -141,7 +140,7 @@ $shipping = $_SESSION['shipping_details'] ?? [];
           <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/Maya_%28Philippines%29_logo.svg/200px-Maya_%28Philippines%29_logo.svg.png" alt="Maya" class="h-6">
         </label>
 
-        <!-- Option 4: Bank Transfer (BDO/BPI) -->
+        <!-- Option 4: Bank Transfer -->
         <label class="payment-option" id="opt-bank" onclick="selectMethod('bank')">
           <div class="flex gap-3 flex-1">
             <input type="radio" name="payment_method" value="bank">
@@ -205,23 +204,22 @@ $shipping = $_SESSION['shipping_details'] ?? [];
                   class="flex-none px-8 py-3 border border-gray-300 rounded-xl text-gray-700 font-medium text-sm hover:bg-gray-50 transition">
             Back
           </button>
-         <button type="submit" id="confirmPaymentBtn"
-                class="flex-1 bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition text-sm">
-          <span id="btnText">Confirm Payment</span>
-          <svg id="btnSpinner" class="hidden animate-spin ml-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-        </button>
+          <button type="submit" id="confirmPaymentBtn"
+                  class="flex-1 bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition text-sm">
+            <span id="btnText">Confirm Payment</span>
+            <svg id="btnSpinner" class="hidden animate-spin ml-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          </button>
         </div>
       </form>
-
-    </div><!-- /right -->
+    </div>
   </div>
 </div>
 
-<!-- Modal (same as before) -->
-<div class="modal-overlay" id="confirmModal">
+<!-- Modal (optional) -->
+<div class="modal-overlay" id="confirmModal" style="display:none;">
   <div class="modal-box">
     <div class="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-5">
       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
@@ -236,36 +234,46 @@ $shipping = $_SESSION['shipping_details'] ?? [];
 </div>
 
 <!-- Toast -->
-<div class="toast" id="toast">
+<div class="toast" id="toast" style="display:none;">
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
   <span id="toastMsg"></span>
 </div>
 
 <script>
   const PRODUCT_IMGS_BASE = '/ecommerce-system/imgs/products/';
-  let cart = JSON.parse(localStorage.getItem('ecommerce_cart') || '[]');
-  
-  // Redirect if cart empty
-  if (cart.length === 0) {
-    window.location.href = 'cart.php';
+  let cartItems = []; // will hold server cart
+
+  // Load cart from server (same as checkout.php)
+  async function loadCartFromServer() {
+    try {
+      const response = await fetch('../includes/get-cart.php');
+      const data = await response.json();
+      cartItems = data;
+      if (cartItems.length === 0) {
+        window.location.href = 'category.php?cat=All'; // redirect if empty
+        return;
+      }
+      renderCart();
+      // Store cart data in hidden input for form submission
+      document.getElementById('cartDataInput').value = JSON.stringify(cartItems);
+    } catch (err) {
+      console.error('Failed to load cart:', err);
+      document.getElementById('cartItemsContainer').innerHTML = '<div class="text-center py-8 text-red-500">Error loading cart</div>';
+    }
   }
 
-  // Populate hidden input
-  document.getElementById('cartDataInput').value = JSON.stringify(cart);
-
-  // Render cart items
   function renderCart() {
     const container = document.getElementById('cartItemsContainer');
     let subtotal = 0;
     let html = '';
-    cart.forEach((item, idx) => {
+    cartItems.forEach(item => {
       const itemTotal = item.price * item.quantity;
       subtotal += itemTotal;
       html += `
         <div class="flex gap-4 border border-gray-200 rounded-xl p-4 mb-4">
-          <img src="${PRODUCT_IMGS_BASE}${item.image}" class="w-24 h-16 object-contain bg-gray-50 rounded-lg">
+          <img src="${PRODUCT_IMGS_BASE}${item.image}" class="w-24 h-16 object-contain bg-gray-50 rounded-lg" onerror="this.src='https://via.placeholder.com/100'">
           <div class="flex-1">
-            <p class="font-medium text-sm">${item.name}</p>
+            <p class="font-medium text-sm">${escapeHtml(item.name)}</p>
             <div class="mt-2 flex justify-between">
               <span>Qty: ${item.quantity}</span>
               <span class="font-semibold">₱${itemTotal.toFixed(2)}</span>
@@ -279,19 +287,27 @@ $shipping = $_SESSION['shipping_details'] ?? [];
     document.getElementById('total').textContent = `₱${subtotal.toFixed(2)}`;
   }
 
-  // Payment method selection (show/hide sub-forms)
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+      if (m === '&') return '&amp;';
+      if (m === '<') return '&lt;';
+      if (m === '>') return '&gt;';
+      return m;
+    });
+  }
+
+  // Payment method selection
   function selectMethod(method) {
     document.querySelectorAll('.payment-option').forEach(el => el.classList.remove('selected'));
     document.getElementById('opt-' + method).classList.add('selected');
     document.querySelectorAll('input[name="payment_method"]').forEach(r => r.checked = (r.value === method));
     
-    // Hide all sub-forms
     document.querySelectorAll('.sub-form').forEach(f => f.classList.remove('open'));
     const form = document.getElementById(method + 'Form');
     if (form) form.classList.add('open');
   }
 
-  // Card formatting
   function formatCard(input) {
     let v = input.value.replace(/\D/g, '').substring(0,16);
     input.value = v.replace(/(.{4})/g, '$1 ').trim();
@@ -302,27 +318,23 @@ $shipping = $_SESSION['shipping_details'] ?? [];
     input.value = v;
   }
 
-  // Toast
-  function showToast(msg) {
-    const el = document.getElementById('toast');
-    document.getElementById('toastMsg').textContent = msg;
-    el.classList.add('show');
-    setTimeout(() => el.classList.remove('show'), 2600);
-  }
-
+  // Form submission: update hidden input before submit
   document.getElementById('paymentForm').addEventListener('submit', function(e) {
-  const btn = document.getElementById('confirmPaymentBtn');
-  const btnText = document.getElementById('btnText');
-  const spinner = document.getElementById('btnSpinner');
-  
-  btn.disabled = true;
-  btn.classList.add('opacity-70', 'cursor-not-allowed');
-  btnText.textContent = 'Processing...';
-  spinner.classList.remove('hidden');
-});
+    // Ensure cart data is up-to-date
+    document.getElementById('cartDataInput').value = JSON.stringify(cartItems);
+    
+    const btn = document.getElementById('confirmPaymentBtn');
+    const btnText = document.getElementById('btnText');
+    const spinner = document.getElementById('btnSpinner');
+    
+    btn.disabled = true;
+    btn.classList.add('opacity-70', 'cursor-not-allowed');
+    btnText.textContent = 'Processing...';
+    spinner.classList.remove('hidden');
+  });
 
   // Initialize
-  renderCart();
+  loadCartFromServer();
   selectMethod('cod');
 </script>
 </body>

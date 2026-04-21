@@ -202,13 +202,37 @@ $customersJson = json_encode($allCustomers);
       padding: 20px 12px; gap: 6px; border-right: 1px solid #c8c8c8;
       position: sticky; top: 0; height: 100vh; overflow-y: auto;
     }
-    .sidebar-logo {
-      display: flex; align-items: center; gap: 10px;
-      padding: 10px 12px 20px; border-bottom: 1px solid #bbb;
-      margin-bottom: 8px; text-decoration: none;
+  .sidebar-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px 20px;
+      border-bottom: 1px solid #bbb;
+      margin-bottom: 8px;
+      text-decoration: none;
     }
-    .sidebar-logo img { width: 34px; height: 34px; object-fit: contain; border-radius: 8px; }
-    .sidebar-logo-text { font-size: 14px; font-weight: 700; color: var(--text); letter-spacing: -.2px; }
+
+    .sidebar-logo-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--white);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      border: 1.5px solid #ddd;
+    }
+
+    .sidebar-logo-icon svg { width: 20px; height: 20px; }
+
+    .sidebar-logo-text {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -.2px;
+    }
+
 
     .nav-item {
       display: flex; align-items: center; gap: 12px; padding: 11px 14px;
@@ -527,33 +551,43 @@ $customersJson = json_encode($allCustomers);
 <body>
 <div class="admin-shell">
 
+ 
   <!-- ── Sidebar ──────────────────────────────────── -->
-  <aside class="sidebar">
-    <a href="admin-dashboard.php" class="sidebar-logo">
-      <img src="../imgs/icons/ecommercelogo.png" alt="logo"/>
-      <span class="sidebar-logo-text">E-Commerce</span>
-    </a>
-    <a href="../admin/admindashboard.php" class="nav-item">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-      Dashboard
-    </a>
-    <a href="admin-inventory.php" class="nav-item">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14M5 8a2 2 0 010-4h14a2 2 0 010 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><path d="M10 12h4"/></svg>
-      Inventory
-    </a>
-    <a href="admin-orders.php" class="nav-item">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
-      Orders
-    </a>
-    <a href="admin-products.php" class="nav-item">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-      Product List
-    </a>
-    <a href="admin-customers.php" class="nav-item active">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-      Customers
-    </a>
-  </aside>
+<?php
+// Get current filename
+$current_file = basename($_SERVER['PHP_SELF']);
+?>
+<aside class="sidebar">
+  <a href="../admin/admindashboard.php" class="sidebar-logo">
+    <img src="../imgs/icons/ecommercelogo.png" alt="logo"/>
+    <span class="sidebar-logo-text">E-Commerce</span>
+  </a>
+
+  <a href="../admin/admindashboard.php" class="nav-item <?= $current_file == 'admindashboard.php' ? 'active' : '' ?>">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    Dashboard
+  </a>
+
+  <a href="../admin/inventory.php" class="nav-item <?= $current_file == 'inventory.php' ? 'active' : '' ?>">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 8h14M5 8a2 2 0 010-4h14a2 2 0 010 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><path d="M10 12h4"/></svg>
+    Inventory
+  </a>
+
+  <a href="../admin/admin-orders.php" class="nav-item <?= $current_file == 'admin-orders.php' ? 'active' : '' ?>">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+    Orders
+  </a>
+
+  <a href="../admin/admin-products.php" class="nav-item <?= $current_file == 'admin-products.php' ? 'active' : '' ?>">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+    Product List
+  </a>
+
+  <a href="../admin/admin-customers.php" class="nav-item <?= $current_file == 'admin-customers.php' ? 'active' : '' ?>">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+    Customers
+  </a>
+</aside>
 
   <!-- ── Content area (table + panel) ─────────────── -->
   <div class="content-area" id="contentArea">

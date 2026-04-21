@@ -1,16 +1,16 @@
 <?php
 session_start();
 
-// ── Auth guard — uncomment when ready ─────────────────
-// if (!isset($_SESSION['admin_id']) || $_SESSION['role'] !== 'admin') {
-//     header('Location: ../auth/login.php');
-//     exit;
-// }
+// ── Auth guard ─────────────────────────────────────────
+if (!isset($_SESSION['admin_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
+    header('Location: ../auth/login.php');
+    exit;
+}
 
 include '../config/db.php';
 
 // ═══════════════════════════════════════════════════════
-//  BACKEND DATA HOOKS
+//  REAL DATA QUERIES (PostgreSQL)
 // ═══════════════════════════════════════════════════════
 
 $filterStatus = isset($_GET['status']) ? $_GET['status'] : 'all';
@@ -19,65 +19,98 @@ $page         = isset($_GET['page'])   ? max(1, (int)$_GET['page']) : 1;
 $perPage      = 10;
 $offset       = ($page - 1) * $perPage;
 
-// -- Real query when backend is ready --
-// $where  = "WHERE 1=1";
-// $params = [];
-// $types  = '';
-// if ($filterStatus === 'completed') { $where .= " AND status = 'Completed'"; }
-// if ($filterStatus === 'pending')   { $where .= " AND status = 'Pending'"; }
-// if ($filterStatus === 'cancelled') { $where .= " AND status = 'Cancelled'"; }
-// if (!empty($search)) {
-//     $where .= " AND (order_id LIKE ? OR product_name LIKE ?)";
-//     $like    = '%' . $search . '%';
-//     $params  = [$like, $like]; $types = 'ss';
-// }
-// $countRes = $conn->query("SELECT COUNT(*) FROM orders $where");
-// $total    = $countRes->fetch_row()[0];
-// $stmt     = $conn->prepare("SELECT * FROM orders $where ORDER BY date DESC LIMIT ? OFFSET ?");
-// ... bind and execute
+// ── Build WHERE conditions ─────────────────────────────
+$whereClauses = [];
+$params = [];
+$paramIdx = 1;
 
-// -- Static placeholder data --
-$allOrders = [
-    ['id' => 1,  'order_id' => 'ORD0001', 'product' => 'Wireless Bluetooth Headphones', 'image' => 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=60&q=75',   'date' => '01-01-2025', 'price' => 49.99,  'payment' => 'Paid',   'status' => 'Delivered'],
-    ['id' => 2,  'order_id' => 'ORD0002', 'product' => "Men's T-Shirt",                 'image' => 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=60&q=75',   'date' => '01-01-2025', 'price' => 14.99,  'payment' => 'Unpaid', 'status' => 'Pending'],
-    ['id' => 3,  'order_id' => 'ORD0003', 'product' => "Men's Leather Wallet",          'image' => 'https://images.unsplash.com/photo-1627123424574-724758594e93?w=60&q=75',   'date' => '01-01-2025', 'price' => 49.99,  'payment' => 'Paid',   'status' => 'Delivered'],
-    ['id' => 4,  'order_id' => 'ORD0004', 'product' => 'Memory Foam Pillow',            'image' => 'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=60&q=75',   'date' => '01-01-2025', 'price' => 39.99,  'payment' => 'Paid',   'status' => 'Shipped'],
-    ['id' => 5,  'order_id' => 'ORD0005', 'product' => 'Adjustable Dumbbells',          'image' => 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=60&q=75',   'date' => '01-01-2025', 'price' => 14.99,  'payment' => 'Unpaid', 'status' => 'Pending'],
-    ['id' => 6,  'order_id' => 'ORD0006', 'product' => 'Coffee Maker',                  'image' => 'https://images.unsplash.com/photo-1520970014086-2208d157c9e2?w=60&q=75',   'date' => '01-01-2025', 'price' => 79.99,  'payment' => 'Unpaid', 'status' => 'Cancelled'],
-    ['id' => 7,  'order_id' => 'ORD0007', 'product' => 'Casual Baseball Cap',           'image' => 'https://images.unsplash.com/photo-1588850561407-ed78c282e89b?w=60&q=75',   'date' => '01-01-2025', 'price' => 49.99,  'payment' => 'Paid',   'status' => 'Delivered'],
-    ['id' => 8,  'order_id' => 'ORD0008', 'product' => 'Full HD Webcam',                'image' => 'https://images.unsplash.com/photo-1587826080692-f439cd0b70da?w=60&q=75',   'date' => '01-01-2025', 'price' => 39.99,  'payment' => 'Paid',   'status' => 'Delivered'],
-    ['id' => 9,  'order_id' => 'ORD0009', 'product' => 'Smart LED Color Bulb',          'image' => 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=60&q=75',       'date' => '01-01-2025', 'price' => 79.99,  'payment' => 'Unpaid', 'status' => 'Delivered'],
-    ['id' => 10, 'order_id' => 'ORD0010', 'product' => "Men's T-Shirt",                 'image' => 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=60&q=75',   'date' => '01-01-2025', 'price' => 14.99,  'payment' => 'Unpaid', 'status' => 'Delivered'],
-];
+if ($filterStatus !== 'all') {
+    $whereClauses[] = "o.status = $" . $paramIdx++;
+    $params[] = $filterStatus;
+}
 
-// Filter client-side for static demo
-$filtered = array_filter($allOrders, function($o) use ($filterStatus, $search) {
-    if ($filterStatus === 'completed' && $o['status'] !== 'Delivered')  return false;
-    if ($filterStatus === 'pending'   && $o['status'] !== 'Pending')    return false;
-    if ($filterStatus === 'cancelled' && $o['status'] !== 'Cancelled')  return false;
-    if ($search && stripos($o['product'], $search) === false
-                && stripos($o['order_id'], $search) === false)          return false;
-    return true;
-});
-$filtered = array_values($filtered);
+if (!empty($search)) {
+    // Search by order ID, product name, or user email/name
+    $whereClauses[] = "(o.id::text ILIKE $" . $paramIdx . 
+                     " OR EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = o.id AND oi.product_name ILIKE $" . $paramIdx . 
+                     ") OR EXISTS (SELECT 1 FROM users u WHERE u.id = o.user_id AND (u.email ILIKE $" . $paramIdx . " OR u.username ILIKE $" . $paramIdx . ")))";
+    $params[] = '%' . $search . '%';
+    $paramIdx++;
+}
 
-$totalAll       = count($allOrders);
-$totalCompleted = count(array_filter($allOrders, fn($o) => $o['status'] === 'Delivered'));
-$totalPending   = count(array_filter($allOrders, fn($o) => $o['status'] === 'Pending'));
-$totalCancelled = count(array_filter($allOrders, fn($o) => $o['status'] === 'Cancelled'));
+$whereSQL = empty($whereClauses) ? '' : 'WHERE ' . implode(' AND ', $whereClauses);
 
-$total      = count($filtered);
-$totalPages = max(1, ceil($total / $perPage));
-$paged      = array_slice($filtered, $offset, $perPage);
+// ── Count total orders for pagination ──────────────────
+$countSQL = "SELECT COUNT(*) FROM orders o $whereSQL";
+$countRes = pg_query_params($conn, $countSQL, $params);
+$totalOrders = $countRes ? (int)pg_fetch_result($countRes, 0, 0) : 0;
+$totalPages = max(1, ceil($totalOrders / $perPage));
 
+// ── Fetch orders with user info and FIRST product only
+$orderSQL = '
+    SELECT 
+        o.id,
+        o.total,
+        o.status,
+        o.created_at,
+        o.payment_method,
+        u.username,
+        u.email,
+        (SELECT product_name FROM order_items WHERE order_id = o.id LIMIT 1) AS first_product,
+        (SELECT COUNT(*) FROM order_items WHERE order_id = o.id) AS item_count,
+        (SELECT image_url FROM order_items WHERE order_id = o.id LIMIT 1) AS image_url
+    FROM orders o
+    JOIN users u ON u.id = o.user_id
+    ' . $whereSQL . '
+    ORDER BY o.created_at DESC, o.id DESC
+    LIMIT $' . $paramIdx . ' OFFSET $' . ($paramIdx+1);
+
+$params[] = $perPage;
+$params[] = $offset;
+$orderResult = pg_query_params($conn, $orderSQL, $params);
+
+$orders = [];
+if ($orderResult) {
+    while ($row = pg_fetch_assoc($orderResult)) {
+        // Format product display
+        $productDisplay = $row['first_product'] ?? '';
+        if ($row['item_count'] > 1) {
+            $productDisplay .= ' + ' . ($row['item_count'] - 1) . ' more';
+        }
+        if (empty($productDisplay)) {
+            $productDisplay = '—';
+        }
+        
+        $orders[] = [
+            'id'          => $row['id'],
+            'order_id'    => 'ORD' . str_pad($row['id'], 6, '0', STR_PAD_LEFT),
+            'product'     => $productDisplay,
+            'image'       => $row['image_url'] ?? '../assets/img/placeholder.png',
+            'date'        => date('d-m-Y', strtotime($row['created_at'])),
+            'price'       => (float)$row['total'],
+            'payment'     => $row['payment_method'] === 'cod' ? 'Unpaid' : 'Paid',
+            'status'      => ucfirst($row['status']),
+            'customer'    => $row['username'] . ' (' . $row['email'] . ')'
+        ];
+    }
+}
+
+// ── Counts for filter tabs ─────────────────────────────
+$totalAll = pg_fetch_result(pg_query($conn, "SELECT COUNT(*) FROM orders"), 0, 0);
+$totalCompleted = pg_fetch_result(pg_query($conn, "SELECT COUNT(*) FROM orders WHERE status = 'delivered'"), 0, 0);
+$totalPending   = pg_fetch_result(pg_query($conn, "SELECT COUNT(*) FROM orders WHERE status = 'pending'"), 0, 0);
+$totalCancelled = pg_fetch_result(pg_query($conn, "SELECT COUNT(*) FROM orders WHERE status = 'cancelled'"), 0, 0);
+
+$paged = $orders; // SQL already handles LIMIT/OFFSET
 $adminName = $_SESSION['admin_name'] ?? 'Admin';
 
+// Helper functions (keep as is)
 function orderStatusStyle(string $status): array {
-    return match($status) {
-        'Delivered' => ['status-delivered', 'Delivered'],
-        'Shipped'   => ['status-shipped',   'Shipped'],
-        'Pending'   => ['status-pending',   'Pending'],
-        'Cancelled' => ['status-cancelled', 'Cancelled'],
+    return match(strtolower($status)) {
+        'delivered' => ['status-delivered', 'Delivered'],
+        'shipped'   => ['status-shipped',   'Shipped'],
+        'pending'   => ['status-pending',   'Pending'],
+        'cancelled' => ['status-cancelled', 'Cancelled'],
         default     => ['status-pending', $status],
     };
 }
@@ -86,6 +119,7 @@ function paymentStyle(string $payment): string {
     return $payment === 'Paid' ? 'pay-paid' : 'pay-unpaid';
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -134,7 +168,7 @@ function paymentStyle(string $payment): string {
       overflow-y: auto;
     }
 
-    .sidebar-logo {
+   .sidebar-logo {
       display: flex;
       align-items: center;
       gap: 10px;
@@ -144,12 +178,19 @@ function paymentStyle(string $payment): string {
       text-decoration: none;
     }
 
-    .sidebar-logo img {
-      width: 34px;
-      height: 34px;
-      object-fit: contain;
-      border-radius: 8px;
+    .sidebar-logo-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--white);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      border: 1.5px solid #ddd;
     }
+
+    .sidebar-logo-icon svg { width: 20px; height: 20px; }
 
     .sidebar-logo-text {
       font-size: 14px;
@@ -539,59 +580,43 @@ function paymentStyle(string $payment): string {
 
 <div class="admin-shell">
 
-  <!-- ── Sidebar ──────────────────────────────────── -->
-  <aside class="sidebar">
+ 
+ <!-- ── Sidebar ──────────────────────────────────── -->
+<?php
+// Get current filename
+$current_file = basename($_SERVER['PHP_SELF']);
+?>
+<aside class="sidebar">
+  <a href="../admin/admindashboard.php" class="sidebar-logo">
+    <img src="../imgs/icons/ecommercelogo.png" alt="logo"/>
+    <span class="sidebar-logo-text">E-Commerce</span>
+  </a>
 
-    <a href="admin-dashboard.php" class="sidebar-logo">
-      <img src="../imgs/icons/ecommercelogo.png" alt="E-Commerce logo"/>
-      <span class="sidebar-logo-text">E-Commerce</span>
-    </a>
+  <a href="../admin/admindashboard.php" class="nav-item <?= $current_file == 'admindashboard.php' ? 'active' : '' ?>">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    Dashboard
+  </a>
 
-    <a href="../admin/admindashboard.php" class="nav-item">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="3" width="7" height="7" rx="1"/>
-        <rect x="14" y="3" width="7" height="7" rx="1"/>
-        <rect x="3" y="14" width="7" height="7" rx="1"/>
-        <rect x="14" y="14" width="7" height="7" rx="1"/>
-      </svg>
-      Dashboard
-    </a>
+  <a href="../admin/inventory.php" class="nav-item <?= $current_file == 'inventory.php' ? 'active' : '' ?>">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 8h14M5 8a2 2 0 010-4h14a2 2 0 010 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><path d="M10 12h4"/></svg>
+    Inventory
+  </a>
 
-    <a href="../admin/inventory.php" class="nav-item">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M5 8h14M5 8a2 2 0 010-4h14a2 2 0 010 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/>
-        <path d="M10 12h4"/>
-      </svg>
-      Inventory
-    </a>
+  <a href="../admin/admin-orders.php" class="nav-item <?= $current_file == 'admin-orders.php' ? 'active' : '' ?>">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+    Orders
+  </a>
 
-    <a href="admin-orders.php" class="nav-item active">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
-        <line x1="3" y1="6" x2="21" y2="6"/>
-        <path d="M16 10a4 4 0 01-8 0"/>
-      </svg>
-      Orders
-    </a>
+  <a href="../admin/admin-products.php" class="nav-item <?= $current_file == 'admin-products.php' ? 'active' : '' ?>">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+    Product List
+  </a>
 
-    <a href="admin-products.php" class="nav-item">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="2" y="3" width="20" height="14" rx="2"/>
-        <path d="M8 21h8M12 17v4"/>
-      </svg>
-      Product List
-    </a>
-
-    <a href="admin-customers.php" class="nav-item">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
-        <circle cx="9" cy="7" r="4"/>
-        <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
-      </svg>
-      Customers
-    </a>
-
-  </aside>
+  <a href="../admin/admin-customers.php" class="nav-item <?= $current_file == 'admin-customers.php' ? 'active' : '' ?>">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+    Customers
+  </a>
+</aside>
 
   <!-- ── Main ─────────────────────────────────────── -->
   <main class="main-content">
@@ -696,13 +721,13 @@ function paymentStyle(string $payment): string {
               <td class="col-no"><?= $rowNo ?></td>
               <td class="col-oid">#<?= htmlspecialchars($o['order_id']) ?></td>
               <td>
-                <div class="product-cell">
-                  <img src="<?= htmlspecialchars($o['image']) ?>"
-                       alt="<?= htmlspecialchars($o['product']) ?>"
-                       class="product-thumb"
-                       onerror="this.src='../assets/img/placeholder.png'"/>
-                  <span class="product-name"><?= htmlspecialchars($o['product']) ?></span>
-                </div>
+              <div class="product-cell">
+            <img src="/ecommerce-system/imgs/products/<?= htmlspecialchars($o['image']) ?>" 
+                    alt="<?= htmlspecialchars($o['product']) ?>" 
+                    class="product-thumb" 
+                    onerror="this.src='https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=60&q=75'">
+                <span class="product-name"><?= htmlspecialchars($o['product']) ?></span>
+            </div>
               </td>
               <td><?= htmlspecialchars($o['date']) ?></td>
               <td class="col-price">$<?= number_format((float)$o['price'], 2) ?></td>

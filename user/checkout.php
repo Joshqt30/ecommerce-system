@@ -10,43 +10,42 @@ if (!isset($_SESSION['user_id'])) {
 
 $userId = $_SESSION['user_id'];
 
-  // Handle order placement (Step 1: collect shipping, go to payment)
-  if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
-      // Collect shipping details
-      $shipping = [
-          'first_name' => trim($_POST['first_name'] ?? ''),
-          'last_name'  => trim($_POST['last_name'] ?? ''),
-          'email'      => trim($_POST['email'] ?? ''),
-          'phone'      => trim($_POST['phone'] ?? ''),
-          'address'    => trim($_POST['address'] ?? ''),
-          'city'       => trim($_POST['city'] ?? ''),
-          'state'      => trim($_POST['state'] ?? ''),
-          'postal_code'=> trim($_POST['postal_code'] ?? '')
-      ];
+// Handle order placement
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
+    // Collect shipping details
+    $shipping = [
+        'first_name' => trim($_POST['first_name'] ?? ''),
+        'last_name'  => trim($_POST['last_name'] ?? ''),
+        'email'      => trim($_POST['email'] ?? ''),
+        'phone'      => trim($_POST['phone'] ?? ''),
+        'address'    => trim($_POST['address'] ?? ''),
+        'city'       => trim($_POST['city'] ?? ''),
+        'state'      => trim($_POST['state'] ?? ''),
+        'postal_code'=> trim($_POST['postal_code'] ?? '')
+    ];
 
-      // Basic validation
-      if (empty($shipping['first_name']) || empty($shipping['last_name']) || empty($shipping['email']) || empty($shipping['address']) || empty($shipping['city'])) {
-          die("Please fill all required fields.");
-      }
+    // Basic validation
+    if (empty($shipping['first_name']) || empty($shipping['last_name']) || empty($shipping['email']) || empty($shipping['address']) || empty($shipping['city'])) {
+        die("Please fill all required fields.");
+    }
 
-      // Store shipping details in session
-      $_SESSION['shipping_details'] = $shipping;
+    // Store shipping details in session
+    $_SESSION['shipping_details'] = $shipping;
 
-      // Redirect to payment page
-      header("Location: payment.php");
-      exit;
-  }
+    // Redirect to payment page
+    header("Location: payment.php");
+    exit;
+}
 
-
-// Base image path (same as viewitems)
+// Base image path
 define('PRODUCT_IMGS_BASE', '/ecommerce-system/imgs/products/');
 ?>
 <!DOCTYPE html>
-<html lang="en" class="bg-gray-100">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Checkout</title> 
+  <title>Checkout</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
@@ -59,11 +58,10 @@ define('PRODUCT_IMGS_BASE', '/ecommerce-system/imgs/products/');
 
 <div class="max-w-6xl mx-auto px-6">
   <form method="POST" id="checkoutForm">
-    <input type="hidden" name="cart_data" id="cartDataInput">
+    <input type="hidden" name="cart_data" id="cartDataInput" value="">
     <input type="hidden" name="place_order" value="1">
 
     <div class="flex gap-8">
-
       <!-- LEFT: Order Summary -->
       <div class="w-5/12 bg-white rounded-2xl shadow-sm p-8" style="height:fit-content;">
         <div class="flex items-center gap-3 mb-8">
@@ -74,8 +72,10 @@ define('PRODUCT_IMGS_BASE', '/ecommerce-system/imgs/products/');
           <h2 class="text-2xl font-semibold text-gray-800">Order Summary</h2>
         </div>
 
-        <!-- Cart items injected here -->
-        <div id="cartItemsContainer"></div>
+        <!-- Cart items will be injected here from server -->
+        <div id="cartItemsContainer">
+          <div class="text-center py-8 text-gray-500">Loading cart...</div>
+        </div>
 
         <!-- Discount -->
         <div class="flex gap-3 mb-6">
@@ -102,7 +102,6 @@ define('PRODUCT_IMGS_BASE', '/ecommerce-system/imgs/products/');
       
       <!-- RIGHT: Shipping Form -->
       <div class="w-7/12 bg-white rounded-xl shadow-sm p-8">
-        <!-- Simplified Progress Step -->
         <div class="flex items-center gap-4 mb-8">
           <div class="flex items-center gap-2 step-active">
             <div class="step-dot"></div>
@@ -148,7 +147,6 @@ define('PRODUCT_IMGS_BASE', '/ecommerce-system/imgs/products/');
         <input type="text" name="postal_code" placeholder="Postal Code" required
                class="w-full border border-gray-300 rounded-lg px-4 py-3 mb-8 focus:outline-none focus:border-blue-500">
 
-        <!-- Delivery Estimate (static, clean) -->
         <div class="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-6">
           <div class="flex items-center gap-3 mb-2">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2">
@@ -178,47 +176,54 @@ define('PRODUCT_IMGS_BASE', '/ecommerce-system/imgs/products/');
 </div>
 
 <script>
-  // Base path for images (must match PHP constant)
   const PRODUCT_IMGS_BASE = '/ecommerce-system/imgs/products/';
+  let cartItems = []; // will hold server cart data
 
-  // Load cart from localStorage
-  let cart = JSON.parse(localStorage.getItem('ecommerce_cart') || '[]');
-
-  // If cart is empty, show message
-  if (cart.length === 0) {
-    document.body.innerHTML = '<div class="text-center py-20"><h2 class="text-xl font-semibold">Your cart is empty</h2><a href="dashboard.php" class="text-blue-600 mt-4 inline-block">Continue Shopping</a></div>';
+  // Fetch cart from server
+  async function loadCartFromServer() {
+    try {
+      const response = await fetch('../includes/get-cart.php');
+      const data = await response.json();
+      cartItems = data; // array of { variantId, productId, name, price, quantity, image }
+      renderCart();
+    } catch (err) {
+      console.error('Failed to load cart:', err);
+      document.getElementById('cartItemsContainer').innerHTML = '<div class="text-center py-8 text-red-500">Error loading cart</div>';
+    }
   }
 
-  // Store cart data in hidden input for PHP
-  document.getElementById('cartDataInput').value = JSON.stringify(cart);
-
-  // Render cart items
   function renderCart() {
     const container = document.getElementById('cartItemsContainer');
+    if (!cartItems.length) {
+      container.innerHTML = '<div class="text-center py-8 text-gray-500">Your cart is empty</div>';
+      updateTotals(0);
+      return;
+    }
+
     let subtotal = 0;
     let html = '';
 
-    cart.forEach((item, index) => {
+    cartItems.forEach((item, idx) => {
       const itemTotal = item.price * item.quantity;
       subtotal += itemTotal;
-
       html += `
-        <div class="flex gap-4 border border-gray-200 rounded-xl p-4 mb-4" data-index="${index}">
+        <div class="flex gap-4 border border-gray-200 rounded-xl p-4 mb-4">
           <img src="${PRODUCT_IMGS_BASE}${item.image}" alt="${item.name}"
-               class="w-24 h-16 object-contain bg-gray-50 rounded-lg flex-shrink-0">
+               class="w-24 h-16 object-contain bg-gray-50 rounded-lg flex-shrink-0"
+               onerror="this.src='https://via.placeholder.com/100'">
           <div class="flex-1">
-            <p class="font-medium text-sm leading-snug text-gray-800">${item.name}</p>
+            <p class="font-medium text-sm leading-snug text-gray-800">${escapeHtml(item.name)}</p>
             <div class="mt-3 flex items-center justify-between">
               <div class="flex items-center border border-gray-300 rounded-lg overflow-hidden">
-                <button type="button" onclick="updateQty(${index}, -1)" class="w-8 h-8 flex items-center justify-center text-lg hover:bg-gray-100 text-gray-600 transition">−</button>
+                <button type="button" onclick="updateQty(${item.variantId}, -1)" class="w-8 h-8 flex items-center justify-center text-lg hover:bg-gray-100 text-gray-600 transition">−</button>
                 <span class="w-10 text-center text-sm font-semibold">${item.quantity}</span>
-                <button type="button" onclick="updateQty(${index}, 1)" class="w-8 h-8 flex items-center justify-center text-lg hover:bg-gray-100 text-gray-600 transition">+</button>
+                <button type="button" onclick="updateQty(${item.variantId}, 1)" class="w-8 h-8 flex items-center justify-center text-lg hover:bg-gray-100 text-gray-600 transition">+</button>
               </div>
               <span class="font-semibold text-gray-800">₱${itemTotal.toFixed(2)}</span>
             </div>
           </div>
-          <button type="button" onclick="removeItem(${index})" class="text-gray-300 hover:text-red-400 transition self-start">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <button type="button" onclick="removeItem(${item.variantId})" class="text-gray-300 hover:text-red-400 transition self-start">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
               <path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
             </svg>
@@ -229,6 +234,8 @@ define('PRODUCT_IMGS_BASE', '/ecommerce-system/imgs/products/');
 
     container.innerHTML = html;
     updateTotals(subtotal);
+    // Store cart data in hidden input for form submission
+    document.getElementById('cartDataInput').value = JSON.stringify(cartItems);
   }
 
   function updateTotals(subtotal) {
@@ -236,35 +243,61 @@ define('PRODUCT_IMGS_BASE', '/ecommerce-system/imgs/products/');
     document.getElementById('total').textContent = `₱${subtotal.toFixed(2)}`;
   }
 
-  window.updateQty = (index, delta) => {
-    const item = cart[index];
-    if (!item) return;
-    const newQty = item.quantity + delta;
-    if (newQty < 1) return;
-    item.quantity = newQty;
-    saveCart();
-  };
-
-  window.removeItem = (index) => {
-    cart.splice(index, 1);
-    saveCart();
-  };
-
-  function saveCart() {
-    localStorage.setItem('ecommerce_cart', JSON.stringify(cart));
-    document.getElementById('cartDataInput').value = JSON.stringify(cart);
-    renderCart();
-    if (cart.length === 0) {
-      location.reload();
+  window.updateQty = async (cartId, delta) => {
+    try {
+      const res = await fetch('../includes/update-cart.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cart_id: cartId, delta: delta })
+      });
+      const data = await res.json();
+      if (data.success) {
+        await loadCartFromServer(); // refresh cart
+      } else {
+        alert('Error updating quantity');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Something went wrong');
     }
-  }
+  };
+
+  window.removeItem = async (cartId) => {
+    try {
+      const res = await fetch('../includes/remove-cart.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cart_id: cartId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        await loadCartFromServer();
+        if (cartItems.length === 0) location.reload();
+      } else {
+        alert('Error removing item');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Something went wrong');
+    }
+  };
 
   function applyDiscount() {
     alert('Discount codes not implemented in demo.');
   }
 
-  // Initial render
-  renderCart();
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+      if (m === '&') return '&amp;';
+      if (m === '<') return '&lt;';
+      if (m === '>') return '&gt;';
+      return m;
+    });
+  }
+
+  // Initial load
+  loadCartFromServer();
 </script>
 
 </body>

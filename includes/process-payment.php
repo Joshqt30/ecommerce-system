@@ -45,13 +45,13 @@ foreach ($cartData as $item) {
     );
 }
 
+// Delete all cart items for this user from the database
+pg_query_params($conn, "DELETE FROM cart WHERE user_id = $1", [$userId]);
+
+// Commit transaction
 pg_query($conn, "COMMIT");
 
-sleep(1);
-
-// Clear cart
-echo "<script>localStorage.removeItem('ecommerce_cart');</script>";
-
 // Redirect to success page
-header("Location: ../includes/order-success.php?id=" . $orderId);
+header("Location: order-success.php?id=" . $orderId);
 exit;
+?>

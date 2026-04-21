@@ -22,7 +22,8 @@ $orderBy = match($sort) {
     default      => 'ORDER BY p.created_at DESC',
 };
 
-// PostgreSQL placeholders ($1, $2, ...)$whereParts = [];
+// ── Build WHERE clause ────────────────────────────────
+$whereParts = [];
 $params     = [];
 $i          = 1;
 
@@ -50,34 +51,33 @@ if (!empty($brand)) {
 
 $whereSQL = $whereParts ? 'WHERE ' . implode(' AND ', $whereParts) : '';
 
-// Rating filter goes in HAVING because it uses AVG()
-// But only if reviews table exists — we guard against that below
+// Rating filter (HAVING)
 $havingSQL = $minRating > 0 
     ? "HAVING COALESCE(AVG(r.rating), 0) >= {$minRating}" 
     : '';
+
 // ── Check if reviews table exists ────────────────────
 $reviewsExist = false;
-
 $checkReviews = pg_query($conn, "
     SELECT EXISTS (
         SELECT FROM information_schema.tables 
         WHERE table_name = 'reviews'
     )
 ");
-
 if ($checkReviews) {
     $reviewsExist = pg_fetch_result($checkReviews, 0, 0) === 't';
 }
 
-// ── Build the SELECT depending on reviews table ───────
+// ── SELECT fields (with or without reviews) ───────────
 if ($reviewsExist) {
     $selectExtra = ", COALESCE(AVG(r.rating), 0) AS avg_rating, COUNT(r.id) AS review_count";
     $joinSQL     = "LEFT JOIN reviews r ON r.product_id = p.id";
-$groupSQL = "GROUP BY p.id, p.name, p.description, p.price, p.stock, p.image, p.category";} else {
+    $groupSQL    = "GROUP BY p.id, p.name, p.description, p.price, p.stock, p.image, p.category";
+} else {
     $selectExtra = ", 0 AS avg_rating, 0 AS review_count";
     $joinSQL     = "";
     $groupSQL    = "";
-    $havingSQL   = ""; // can't filter by rating without the table
+    $havingSQL   = "";
 }
 
 // ── Count total for pagination ────────────────────────
@@ -91,15 +91,10 @@ $countSQL = "
         {$havingSQL}
     ) sub
 ";
-
-$totalProducts = 0;
 $countRes = pg_query_params($conn, $countSQL, $params);
+$totalProducts = $countRes ? (int)pg_fetch_result($countRes, 0, 0) : 0;
+$totalPages = max(1, ceil($totalProducts / $perPage));
 
-$totalProducts = $countRes
-    ? (int)pg_fetch_result($countRes, 0, 0)
-    : 0;
-
-$totalPages = max(1, ceil($totalProducts / $perPage)); // ✅ ADD THIS
 // ── Main product query ────────────────────────────────
 $mainSQL = "
     SELECT p.id, p.name, p.description, p.price, p.stock, p.image, p.category
@@ -110,26 +105,20 @@ $mainSQL = "
     {$groupSQL}
     {$havingSQL}
     {$orderBy}
-LIMIT \${$i} OFFSET \$" . ($i+1) . "
+    LIMIT \${$i} OFFSET \$" . ($i+1) . "
 ";
+$queryParams = array_merge($params, [$perPage, $offset]);
+$result = pg_query_params($conn, $mainSQL, $queryParams);
+$dbError = $result ? null : pg_last_error($conn);
 
 $products = [];
-$dbError  = null;
-
-$queryParams = array_merge($params, [$perPage, $offset]);
-
-$result = pg_query_params($conn, $mainSQL, $queryParams);
-
-if (!$result) {
-    $dbError = pg_last_error($conn);
-} else {
+if ($result) {
     while ($row = pg_fetch_assoc($result)) {
         $products[] = $row;
     }
 }
 
 // ── Dynamic brands for sidebar ────────────────────────
-// Pull first word of product name as brand, scoped to category
 $brands = [];
 if ($category !== 'All' && $category !== 'Others' && empty($search)) {
     $bResult = pg_query_params($conn,
@@ -137,17 +126,14 @@ if ($category !== 'All' && $category !== 'Others' && empty($search)) {
          FROM products WHERE category = $1 ORDER BY brand",
         [$category]
     );
-
     while ($b = pg_fetch_assoc($bResult)) {
         if (!empty($b['brand'])) $brands[] = $b['brand'];
     }
-
 } else {
     $bResult = pg_query($conn,
         "SELECT DISTINCT SPLIT_PART(name,' ',1) AS brand 
          FROM products ORDER BY brand LIMIT 20"
     );
-
     while ($b = pg_fetch_assoc($bResult)) {
         if (!empty($b['brand'])) $brands[] = $b['brand'];
     }
@@ -160,16 +146,13 @@ if ($category !== 'All' && $category !== 'Others' && empty($search)) {
         [$category]
     );
 } else {
-    $mRes = pg_query($conn,
-        "SELECT CEIL(MAX(price)) FROM products"
-    );
+    $mRes = pg_query($conn, "SELECT CEIL(MAX(price)) FROM products");
 }
-
 $sliderMax = ($mRes ? (int)pg_fetch_result($mRes, 0, 0) : 0) ?: 50000;
 
-// ── Output HTML (includes AFTER all logic) ────────────
-include '../includes/cart-panel.php';
+// ── Include header and cart panel ─────────────────────
 include '../includes/header.php';
+include '../includes/cart-panel.php'; 
 ?>
 <!doctype html>
 <html lang="en">
@@ -184,6 +167,17 @@ include '../includes/header.php';
     <link rel="stylesheet" href="../assets/css/cart-panel.css">
     <link rel="stylesheet" href="../assets/css/category.css">
     <style>
+        /* Additional overrides to reduce card size and clean up */
+        .category-page { max-width: 1100px; }
+        .product-grid { gap: 16px; }
+        .card-img-wrap { height: 160px; }
+        .card-body { padding: 12px 14px 14px; gap: 4px; }
+        .card-name { font-size: 13px; }
+        .card-desc { font-size: 11px; line-height: 1.4; }
+        .card-price { font-size: 16px; }
+        .btn-cart, .btn-buy { padding: 6px 12px; font-size: 11px; white-space: nowrap; }
+        .card-footer { margin-top: 6px; }
+        .card-stars .stars { font-size: 11px; }
         .suggest-name { flex: 1; font-size: 13px; color: #14181F; }
         .suggest-cat  { font-size: 11px; color: #9ca3af; white-space: nowrap; }
         .search-result-item { display: flex; align-items: center; gap: 10px; }
@@ -271,73 +265,70 @@ include '../includes/header.php';
 
     <div class="category-layout">
 
-        <!-- Sidebar -->
-        <aside class="filter-sidebar">
-            <form method="GET" id="filterForm">
-                <input type="hidden" name="cat"    value="<?= htmlspecialchars($category) ?>">
-                <input type="hidden" name="sort"   value="<?= htmlspecialchars($sort) ?>">
-                <input type="hidden" name="search" value="<?= htmlspecialchars($search) ?>">
-
-                <!-- Price range -->
-                <div class="filter-group">
-                    <h3 class="filter-title">Price Range</h3>
-                    <div class="price-range-labels">
-                        <span>₱0</span>
-                        <span id="priceMaxLabel">₱<?= number_format($maxPrice ?? $sliderMax) ?></span>
-                    </div>
-                    <input type="range" name="max_price" id="priceRange"
-                           min="0" max="<?= $sliderMax ?>"
-                           value="<?= $maxPrice ?? $sliderMax ?>"
-                           class="price-slider"
-                           oninput="document.getElementById('priceMaxLabel').textContent
-                               = '₱' + parseInt(this.value).toLocaleString('en-PH')">
-                </div>
-
-                <!-- Brands (dynamic from DB) -->
-                <?php if (!empty($brands)): ?>
-                <div class="filter-group">
-                    <h3 class="filter-title">Brand</h3>
-                    <div class="filter-options">
-                        <label class="filter-check">
-                            <input type="radio" name="brand" value=""
-                                   <?= empty($brand) ? 'checked' : '' ?>> All
-                        </label>
-                        <?php foreach ($brands as $b): ?>
-                        <label class="filter-check">
-                            <input type="radio" name="brand"
-                                   value="<?= htmlspecialchars($b) ?>"
-                                   <?= $brand === $b ? 'checked' : '' ?>>
-                            <?= htmlspecialchars($b) ?>
-                        </label>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-                <?php endif; ?>
-
-                <!-- Rating (only shown if reviews table exists) -->
-                <?php if ($reviewsExist): ?>
-                <div class="filter-group">
-                    <h3 class="filter-title">Min. Rating</h3>
-                    <div class="filter-options">
-                        <?php foreach ([0 => 'All', 4 => '★★★★☆ 4 &amp; up', 3 => '★★★☆☆ 3 &amp; up', 2 => '★★☆☆☆ 2 &amp; up'] as $val => $label): ?>
-                        <label class="filter-check">
-                            <input type="radio" name="rating" value="<?= $val ?>"
-                                   <?= $minRating === $val ? 'checked' : '' ?>>
-                            <?= $label ?>
-                        </label>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-                <?php endif; ?>
-
-                <button type="submit" class="btn-filter">Apply Filters</button>
-
-                <?php if (!empty($brand) || $minRating > 0 || $maxPrice !== null): ?>
-                    <a href="?cat=<?= urlencode($category) ?>" class="btn-clear-filters">✕ Clear filters</a>
-                <?php endif; ?>
-            </form>
-        </aside>
-
+     <!-- ── Filter sidebar ──────────────────────────── -->
+    <aside class="filter-sidebar">
+      <div class="filter-sidebar-title">Filters</div>
+      <form method="GET" id="filterForm">
+        <input type="hidden" name="cat"    value="<?= htmlspecialchars($category) ?>">
+        <input type="hidden" name="sort"   value="<?= htmlspecialchars($sort) ?>">
+        <input type="hidden" name="search" value="<?= htmlspecialchars($search) ?>">
+ 
+        <!-- Price Range -->
+        <div class="filter-group">
+          <div class="filter-group-title">Price Range</div>
+          <div class="price-range-labels">
+            <span>₱0</span>
+            <span id="priceMaxLabel">₱<?= number_format($maxPrice ?? $sliderMax) ?></span>
+          </div>
+          <input type="range" name="max_price" id="priceRange"
+                 min="0" max="<?= $sliderMax ?>"
+                 value="<?= $maxPrice ?? $sliderMax ?>"
+                 class="price-slider"
+                 oninput="document.getElementById('priceMaxLabel').textContent = '₱' + parseInt(this.value).toLocaleString('en-PH')"/>
+        </div>
+ 
+        <!-- Brand -->
+        <?php if (!empty($brands)): ?>
+        <div class="filter-group">
+          <div class="filter-group-title">Brand</div>
+          <div class="filter-options">
+            <label class="filter-check <?= empty($brand) ? 'selected' : '' ?>">
+              <input type="radio" name="brand" value="" <?= empty($brand) ? 'checked' : '' ?>> All
+            </label>
+            <?php foreach ($brands as $b): ?>
+            <label class="filter-check <?= $brand === $b ? 'selected' : '' ?>">
+              <input type="radio" name="brand" value="<?= htmlspecialchars($b) ?>"
+                     <?= $brand === $b ? 'checked' : '' ?>>
+              <?= htmlspecialchars($b) ?>
+            </label>
+            <?php endforeach; ?>
+          </div>
+        </div>
+        <?php endif; ?>
+ 
+        <!-- Rating (only if reviews table exists) -->
+        <?php if ($reviewsExist): ?>
+        <div class="filter-group">
+          <div class="filter-group-title">Min. Rating</div>
+          <div class="filter-options">
+            <?php foreach ([0 => 'All', 4 => '★★★★ 4 & up', 3 => '★★★ 3 & up', 2 => '★★ 2 & up'] as $val => $label): ?>
+            <label class="filter-check <?= $minRating === $val ? 'selected' : '' ?>">
+              <input type="radio" name="rating" value="<?= $val ?>"
+                     <?= $minRating === $val ? 'checked' : '' ?>>
+              <?= $label ?>
+            </label>
+            <?php endforeach; ?>
+          </div>
+        </div>
+        <?php endif; ?>
+ 
+        <button type="submit" class="btn-filter">Apply Filters</button>
+ 
+        <?php if (!empty($brand) || $minRating > 0 || $maxPrice !== null): ?>
+          <a href="?cat=<?= urlencode($category) ?>" class="btn-clear-filters">✕ Clear filters</a>
+        <?php endif; ?>
+      </form>
+    </aside>
         <!-- Product grid -->
         <section class="product-grid" id="productGrid">
 
@@ -358,24 +349,21 @@ include '../includes/header.php';
                         : '../assets/img/placeholder.png';
                     $outOfStock  = (int)$row['stock'] === 0;
                     $lowStock    = !$outOfStock && (int)$row['stock'] <= 5;
+                    // Truncate description
+                    $desc = htmlspecialchars($row['description']);
+                    $shortDesc = strlen($desc) > 80 ? substr($desc, 0, 80) . '…' : $desc;
                 ?>
                 <article class="product-card"
                     onclick="window.location.href='viewitems.php?id=<?= (int)$row['id'] ?>'"
-                    style="cursor:pointer;"                         data-price="<?= (float)$row['price'] ?>"
-                         data-name="<?= htmlspecialchars($row['name'], ENT_QUOTES) ?>">
+                    style="cursor:pointer;"
+                    data-price="<?= (float)$row['price'] ?>"
+                    data-name="<?= htmlspecialchars($row['name'], ENT_QUOTES) ?>">
 
                     <div class="card-img-wrap">
-                        <img src="<?= $imgSrc ?>"
-                             alt="<?= htmlspecialchars($row['name']) ?>"
-                             class="card-img"
-                             onerror="this.src='../assets/img/placeholder.png'"/>
-
-                        <button class="card-wishlist" aria-label="Wishlist">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                            </svg>
-                        </button>
+                        <img src="<?= !empty($row['image']) ? '../imgs/' . htmlspecialchars($row['image']) : 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22100%25%22%20height%3D%22100%25%22%20viewBox%3D%220%200%20100%20100%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%23f0f0f0%22%2F%3E%3Ctext%20x%3D%2250%22%20y%3D%2250%22%20font-size%3D%2212%22%20text-anchor%3D%22middle%22%20dy%3D%22.3em%22%20fill%3D%22%23999%22%3ENo%20Image%3C%2Ftext%3E%3C%2Fsvg%3E' ?>"
+     alt="<?= htmlspecialchars($row['name']) ?>"
+     class="card-img">
+                        <!-- Wishlist heart removed -->
 
                         <?php if ($outOfStock): ?>
                             <span class="card-badge out">Out of Stock</span>
@@ -386,7 +374,7 @@ include '../includes/header.php';
 
                     <div class="card-body">
                         <p class="card-name"><?= htmlspecialchars($row['name']) ?></p>
-                        <p class="card-desc"><?= htmlspecialchars($row['description']) ?></p>
+                        <p class="card-desc"><?= $shortDesc ?></p>
 
                         <?php if ($reviewCount > 0): ?>
                             <div class="card-stars">
@@ -402,17 +390,13 @@ include '../includes/header.php';
                             <div class="card-actions">
                                 <?php if (!$outOfStock): ?>
                                     <button class="btn-cart"
-                                        onclick="addToCart(this,
-                                            <?= (int)$row['id'] ?>,
-                                            '<?= addslashes(htmlspecialchars($row['name'])) ?>',
-                                            <?= (float)$row['price'] ?>,
-                                            '<?= addslashes($imgSrc) ?>')">
-                                        Add to Cart
-                                    </button>
-                                    <button class="btn-buy"
-                                        onclick="buyNow(<?= (int)$row['id'] ?>)">
-                                        Buy now
-                                    </button>
+                                    onclick="event.stopPropagation(); addToCart(this, <?= (int)$row['id'] ?>)">
+                                    Add to Cart
+                                </button>
+                                  <button class="btn-buy"
+                                    onclick="event.stopPropagation(); buyNow(<?= (int)$row['id'] ?>)">
+                                    Buy now
+                                </button>
                                 <?php else: ?>
                                     <button class="btn-cart" disabled
                                             style="opacity:.45; cursor:not-allowed;">
@@ -487,36 +471,37 @@ function toast(msg) {
     el._t = setTimeout(() => el.classList.remove('show'), 2600);
 }
 
-// ── Add to cart ───────────────────────────────────────
-function addToCart(btn, id, name, price, image) {
-    if (typeof CartPanel !== 'undefined') {
-        CartPanel.addItem({ id, name, price, image });
-    }
-    btn.textContent = 'Added ✓';
-    btn.classList.add('added');
-    setTimeout(() => {
-        btn.textContent = 'Add to Cart';
-        btn.classList.remove('added');
-    }, 1800);
-}
 
-// ── Buy now ───────────────────────────────────────────
-function buyNow(id) {
-    window.location.href = '../user/checkout.php?product_id=' + id;
-}
-
-// ── Wishlist toggle ───────────────────────────────────
-document.querySelectorAll('.card-wishlist').forEach(btn => {
-    btn.addEventListener('click', e => {
-        e.stopPropagation();
-        const on = btn.classList.toggle('wished');
-        btn.querySelector('svg').setAttribute('fill',   on ? '#ef4444' : 'none');
-        btn.querySelector('svg').setAttribute('stroke', on ? '#ef4444' : 'currentColor');
-        toast(on ? 'Added to wishlist ♥' : 'Removed from wishlist');
+function addToCart(btn, productId) {
+    fetch('../includes/add.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_id: productId })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            toast('Added to cart');
+            if (typeof CartPanel !== 'undefined') {
+                CartPanel.open();
+                CartPanel.render();
+            }
+        } else {
+            toast(data.message || 'Error adding to cart');
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        toast('Something went wrong');
     });
-});
+}
 
-// ── Smart search — inline PHP-powered AJAX ────────────
+function buyNow(id) {
+    // Change this to go to viewitems.php first, not checkout
+    window.location.href = '../user/viewitems.php?id=' + id;
+}
+
+// ── Smart search ──────────────────────────────────────
 const searchInput   = document.getElementById('searchInput');
 const searchResults = document.getElementById('searchResults');
 let searchTimer;
