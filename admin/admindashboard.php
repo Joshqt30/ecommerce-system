@@ -553,11 +553,6 @@ $current_file = basename($_SERVER['PHP_SELF']);
     Dashboard
   </a>
 
-  <a href="../admin/inventory.php" class="nav-item <?= $current_file == 'inventory.php' ? 'active' : '' ?>">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 8h14M5 8a2 2 0 010-4h14a2 2 0 010 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><path d="M10 12h4"/></svg>
-    Inventory
-  </a>
-
   <a href="../admin/admin-orders.php" class="nav-item <?= $current_file == 'admin-orders.php' ? 'active' : '' ?>">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
     Orders
@@ -565,7 +560,7 @@ $current_file = basename($_SERVER['PHP_SELF']);
 
   <a href="../admin/admin-products.php" class="nav-item <?= $current_file == 'admin-products.php' ? 'active' : '' ?>">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-    Product List
+    Products
   </a>
 
   <a href="../admin/admin-customers.php" class="nav-item <?= $current_file == 'admin-customers.php' ? 'active' : '' ?>">
@@ -674,7 +669,7 @@ $current_file = basename($_SERVER['PHP_SELF']);
         <div class="panel-card">
           <div class="panel-title">
             Recent Orders
-            <a href="orders.php" class="panel-link">View all →</a>
+            <a href="../admin/admin-orders.php" class="panel-link">View all →</a>
           </div>
           <?php if (empty($recentOrders)): ?>
             <table class="mini-table"><tbody>
@@ -712,7 +707,7 @@ $current_file = basename($_SERVER['PHP_SELF']);
         <div class="panel-card">
           <div class="panel-title">
             Low Stock
-            <a href="inventory.php?status=lowstock" class="panel-link">View all →</a>
+            <a href="../admin/admin-products.php?status=lowstock" class="panel-link">View all →</a>
           </div>
           <?php if (empty($lowStockProducts)): ?>
             <p style="font-size:12px;color:var(--muted);padding:12px 0">All products well stocked ✓</p>

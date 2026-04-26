@@ -1,7 +1,7 @@
 <?php
 session_start();
 
-// ── Auth guard — uncomment when ready ─────────────────
+// ── Auth guard ────────────────────────────────────────
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     header('Location: ../auth/login.php');
     exit;
@@ -9,7 +9,6 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 
 // ═══════════════════════════════════════════════════════
 //  PostgreSQL CONNECTION (PDO)
-//  Replace credentials before going live
 // ═══════════════════════════════════════════════════════
 $dsn = "pgsql:host=localhost;port=5432;dbname=ecommerce_db";
 try {
@@ -22,6 +21,36 @@ try {
     $dbConnError = $e->getMessage();
 }
 
+// ── Product ID & Fetch ──────────────────────────────
+$productId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+if ($productId <= 0) {
+    header('Location: admin-products.php');
+    exit;
+}
+
+if ($pdo) {
+    $stmt = $pdo->prepare("SELECT * FROM products WHERE id = :id");
+    $stmt->execute([':id' => $productId]);
+    $product = $stmt->fetch();
+    if (!$product) {
+        header('Location: admin-products.php');
+        exit;
+    }
+    // Pre‑fill form if not submitted
+    if (empty($_POST)) {
+        $_POST['product_name']    = $product['name'];
+        $_POST['description']     = $product['description'];
+        $_POST['price']           = $product['price'];
+        $_POST['stock_quantity']  = $product['stock'];
+        $_POST['category']        = $product['category'];
+    }
+} else {
+    $product = null; // Will show DB error later
+}
+
+// Define base image path
+define('PRODUCT_IMGS_BASE', '/ecommerce-system/imgs/products/');
+
 // ═══════════════════════════════════════════════════════
 //  HANDLE POST SUBMISSION
 // ═══════════════════════════════════════════════════════
@@ -30,7 +59,6 @@ $success = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo) {
 
-    // ── Sanitize ──────────────────────────────────────
     $name         = trim($_POST['product_name']        ?? '');
     $description  = trim($_POST['description']         ?? '');
     $price        = floatval($_POST['price']           ?? 0);
@@ -39,28 +67,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo) {
     $stock        = intval($_POST['stock_quantity']    ?? 0);
     $stock_status = trim($_POST['stock_status']        ?? 'in_stock');
     $category     = trim($_POST['category']            ?? '');
-    $tags         = trim($_POST['tags']                ?? '');  // comma-separated, appended to description
-    $colors       = trim($_POST['colors']              ?? '');  // JSON, appended to description
+    $tags         = trim($_POST['tags']                ?? '');
+    $colors       = trim($_POST['colors']              ?? '');
 
-    // ── Validate ──────────────────────────────────────
     if (empty($name))        $errors[] = 'Product name is required.';
     if ($price <= 0)         $errors[] = 'Product price must be greater than 0.';
     if ($has_discount && $disc_price !== null && $disc_price >= $price)
                              $errors[] = 'Discounted price must be less than the original price.';
     if ($stock < 0)          $errors[] = 'Stock quantity cannot be negative.';
     if (empty($category))    $errors[] = 'Please select a category.';
-
-    // Out of Stock status overrides stock to 0
     if ($stock_status === 'out_of_stock') $stock = 0;
 
-    // ── Image upload ──────────────────────────────────
-    // products.image stores a single filename (your schema)
+    // Build full description (append tags/colors as notes)
+    $fullDescription = $description;
+    if ($has_discount && $disc_price !== null)
+        $fullDescription .= "\n[discount:" . number_format($disc_price, 2) . "]";
+    if (!empty($tags))
+        $fullDescription .= "\n[tags:" . $tags . "]";
+    if (!empty($colors) && $colors !== '[]')
+        $fullDescription .= "\n[colors:" . $colors . "]";
+
+    // Image upload
     $primaryImage = null;
     if (!empty($_FILES['product_images']['name'][0])) {
         $uploadDir    = '../imgs/products/';
         $allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
         if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
-
         foreach ($_FILES['product_images']['tmp_name'] as $i => $tmpName) {
             if ($_FILES['product_images']['error'][$i] !== UPLOAD_ERR_OK) continue;
             $mime = mime_content_type($tmpName);
@@ -69,31 +101,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo) {
             $ext      = strtolower(pathinfo($_FILES['product_images']['name'][$i], PATHINFO_EXTENSION));
             $filename = uniqid('prod_', true) . '.' . $ext;
             if (move_uploaded_file($tmpName, $uploadDir . $filename)) {
-                if ($primaryImage === null) $primaryImage = $filename; // first image = main
+                if ($primaryImage === null) $primaryImage = $filename;
             }
         }
     }
 
-    // ── Insert into products (exact schema from your CSV) ─
-    // Columns: id, name, description, price, stock, image, category, created_at
-    // Extra metadata (discount, tags, colors) appended to description as structured notes
-    // TODO: add dedicated columns (discounted_price TEXT, tags TEXT, colors JSONB) when ready
     if (empty($errors)) {
         try {
-            $metaNote = '';
-            if ($has_discount && $disc_price !== null)
-                $metaNote .= "\n[discount:" . number_format($disc_price, 2) . "]";
-            if (!empty($tags))
-                $metaNote .= "\n[tags:" . $tags . "]";
-            if (!empty($colors) && $colors !== '[]')
-                $metaNote .= "\n[colors:" . $colors . "]";
-
-            $fullDescription = rtrim($description . $metaNote);
-
             $stmt = $pdo->prepare("
-                INSERT INTO products (name, description, price, stock, image, category, created_at)
-                VALUES               (:name, :description, :price, :stock, :image, :category, NOW())
-                RETURNING id
+                UPDATE products 
+                SET 
+                    name        = :name,
+                    description = :description,
+                    price       = :price,
+                    stock       = :stock,
+                    image       = COALESCE(:image, image),
+                    category    = :category
+                WHERE id = :id
             ");
             $stmt->execute([
                 ':name'        => $name,
@@ -102,48 +126,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo) {
                 ':stock'       => $stock,
                 ':image'       => $primaryImage,
                 ':category'    => $category,
+                ':id'          => $productId,
             ]);
-            $newId   = $stmt->fetchColumn();
             $success = true;
-
         } catch (PDOException $e) {
-            $errors[] = 'Database error: ' . $e->getMessage();
+            $errors[] = 'Update error: ' . $e->getMessage();
         }
+    }
+
+    if ($success) {
+        header("Location: admin-products.php?msg=" . urlencode("\"" . $name . "\" updated successfully."));
+        exit;
     }
 }
 
-// PRG — redirect on success to prevent double-submit
-if ($success) {
-    header("Location: admin-products.php?msg=" . urlencode("\"" . $name . "\" published successfully."));
-    exit;
-}
+        // ── Pull categories from DB, fall back to hardcoded list ──
+        $categories = [];
+        if ($pdo) {
+            $catStmt = $pdo->query("
+                SELECT DISTINCT category FROM products
+                WHERE category IS NOT NULL AND category <> ''
+                ORDER BY category
+            ");
+            $categories = $catStmt ? $catStmt->fetchAll(PDO::FETCH_COLUMN) : [];
+        }
 
-// ── Pull categories from DB, fall back to hardcoded list ──
-$categories = [];
-if ($pdo) {
-    $catStmt = $pdo->query("
-        SELECT DISTINCT category FROM products
-        WHERE category IS NOT NULL AND category <> ''
-        ORDER BY category
-    ");
-    $categories = $catStmt ? $catStmt->fetchAll(PDO::FETCH_COLUMN) : [];
-}
+        $suggestionsCategories = [
+            'Cameras', 'Cell phones', 'Computers & Laptops', 'Headsets',
+            'Kitchen Equipment', 'Laptops', 'Smartphones', 'Sound', 'TV sets', 'Watches',
+        ];
+        $categories = array_values(array_unique(array_merge($categories, $suggestionsCategories)));
+        sort($categories);
 
-$suggestionsCategories = [
-    'Cameras', 'Cell phones', 'Computers & Laptops', 'Headsets',
-    'Kitchen Equipment', 'Laptops', 'Smartphones', 'Sound', 'TV sets', 'Watches',
-];
-$categories = array_values(array_unique(array_merge($categories, $suggestionsCategories)));
-sort($categories);
-
-$adminName = $_SESSION['username'] ?? 'Admin';
-?>
+        $adminName = $_SESSION['username'] ?? 'Admin';
+        ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Add New Product – Admin</title>
+  <title>Edit Product – Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
@@ -516,7 +538,7 @@ $current_file = basename($_SERVER['PHP_SELF']);
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           Back
         </a>
-        <h1 class="page-title">Add New Product</h1>
+        <h1 class="page-title">Edit Product</h1>
       </div>
       <button class="btn-admin" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
@@ -542,6 +564,7 @@ $current_file = basename($_SERVER['PHP_SELF']);
     <p class="req-note">Fields marked <span>*</span> are required.</p>
 
     <form method="POST" enctype="multipart/form-data" id="productForm">
+    <input type="hidden" name="product_id" value="<?= $productId ?>">
 
       <div class="form-grid">
 
@@ -646,7 +669,7 @@ $current_file = basename($_SERVER['PHP_SELF']);
                     <?= !$pdo ? 'disabled title="No database connection"' : '' ?>>
               <span class="spinner" id="submitSpinner"></span>
               <svg id="submitIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              Publish Product
+              Update Product
             </button>
           </div>
 
@@ -675,7 +698,14 @@ $current_file = basename($_SERVER['PHP_SELF']);
               <div class="drop-title">Click or drag images here</div>
               <div class="drop-hint">JPG, PNG, WebP · max 5 MB · first image = main product photo</div>
             </div>
-            <div class="image-previews" id="imagePreviews"></div>
+            <div class="image-previews" id="imagePreviews">
+                <?php if (!empty($product['image'])): ?>
+                <div class="preview-thumb" id="existingImage">
+                    <img src="<?= PRODUCT_IMGS_BASE . htmlspecialchars($product['image']) ?>" alt="Current image">
+                    <span class="remove-img" onclick="removeExistingImage()">✕</span>
+                </div>
+                <?php endif; ?>
+            </div>
           </div>
 
           <!-- Categories & Tags -->
@@ -927,6 +957,20 @@ document.getElementById('productForm').addEventListener('submit', function(e) {
   document.getElementById('submitSpinner').style.display = 'block';
   document.getElementById('submitIcon').style.display    = 'none';
 });
+
+function removeExistingImage() {
+  const el = document.getElementById('existingImage');
+  if (el) el.remove();
+  // Optional: add a hidden input to tell backend to delete old image
+  let delInput = document.querySelector('input[name="delete_old_image"]');
+  if (!delInput) {
+    delInput = document.createElement('input');
+    delInput.type = 'hidden';
+    delInput.name = 'delete_old_image';
+    delInput.value = '1';
+    document.getElementById('productForm').appendChild(delInput);
+  }
+}
 </script>
 </body>
 </html>
