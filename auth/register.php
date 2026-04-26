@@ -10,33 +10,32 @@ if (isset($_POST['register'])) {
     $confirm = $_POST['confirm_password'];
 
     if ($password !== $confirm) {
-        echo "<script>alert('Passwords do not match');</script>";
+        $error = "Passwords do not match!";
     } else {
 
-        // ✅ Hash password (IMPORTANT)
-        $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+        // check duplicates
+        $check = pg_query_params($conn,
+            "SELECT id FROM users WHERE username = $1 OR email = $2",
+            [$username, $email]
+        );
 
-        // ✅ Check if username/email already exists
-        $checkQuery = "SELECT id FROM users WHERE username = $1 OR email = $2";
-        $checkResult = pg_query_params($conn, $checkQuery, [$username, $email]);
-
-        if (pg_num_rows($checkResult) > 0) {
-            echo "<script>alert('Username or Email already exists');</script>";
+        if (pg_num_rows($check) > 0) {
+            $error = "Username or Email already exists!";
         } else {
 
-            // ✅ Insert into PostgreSQL
-            $insertQuery = "INSERT INTO users (username, email, password) VALUES ($1, $2, $3)";
-            $insertResult = pg_query_params($conn, $insertQuery, [
-                $username,
-                $email,
-                $hashedPassword
-            ]);
+            // store TEMP data only
+            $_SESSION['reg_username'] = $username;
+            $_SESSION['reg_email'] = $email;
+            $_SESSION['reg_password'] = $password;
 
-            if ($insertResult) {
-                echo "<script>alert('Registration successful'); window.location.href='login.php';</script>";
-            } else {
-                echo "<script>alert('Registration failed');</script>";
-            }
+            // generate OTP if not yet created
+            if (!isset($_SESSION['otp'], $_SESSION['otp_time'])) {
+            $_SESSION['otp'] = random_int(100000, 999999);
+            $_SESSION['otp_time'] = time();
+        }
+
+            header("Location: confirm-register.php");
+            exit();
         }
     }
 }

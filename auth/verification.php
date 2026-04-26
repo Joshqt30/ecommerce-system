@@ -2,10 +2,12 @@
 session_start();
 require_once "../vendor/autoload.php";
 
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . "/..");
+$dotenv->load();
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-if (!isset($_SESSION['otp'])) {
+if (!isset($_SESSION['reg_email'], $_SESSION['otp'])) {
     header("Location: register.php");
     exit();
 }
@@ -22,16 +24,16 @@ if (!isset($_SESSION['otp_sent'])) {
 
     try {
         $mail->isSMTP();
-        $mail->Host = 'smtp.gmail.com';
+       $mail->Host = $_ENV['SMTP_HOST'];
         $mail->SMTPAuth = true;
 
-        $mail->Username = 'makers0358@gmail.com';
-        $mail->Password = 'plqdvmjsrtomputu';
+        $mail->Username = $_ENV['SMTP_USER'];
+        $mail->Password = $_ENV['SMTP_PASS'];
 
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port = 587;
+        $mail->Port = $_ENV['SMTP_PORT'];
 
-        $mail->setFrom('YOUR_EMAIL@gmail.com', 'E-Commerce');
+        $mail->setFrom($_ENV['SMTP_FROM'], $_ENV['SMTP_NAME']);
         $mail->addAddress(trim($email));
 
         $mail->isHTML(true);
@@ -43,8 +45,8 @@ if (!isset($_SESSION['otp_sent'])) {
         $_SESSION['otp_sent'] = true;
 
     } catch (Exception $e) {
-        echo "Email failed: {$mail->ErrorInfo}";
-    }
+    error_log("OTP Email failed: " . $mail->ErrorInfo);
+  }
 }
 
 // VERIFY OTP

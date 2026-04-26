@@ -359,18 +359,19 @@ include '../includes/cart-panel.php';
                     data-price="<?= (float)$row['price'] ?>"
                     data-name="<?= htmlspecialchars($row['name'], ENT_QUOTES) ?>">
 
-                    <div class="card-img-wrap">
-                        <img src="<?= !empty($row['image']) ? '../imgs/' . htmlspecialchars($row['image']) : 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22100%25%22%20height%3D%22100%25%22%20viewBox%3D%220%200%20100%20100%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%23f0f0f0%22%2F%3E%3Ctext%20x%3D%2250%22%20y%3D%2250%22%20font-size%3D%2212%22%20text-anchor%3D%22middle%22%20dy%3D%22.3em%22%20fill%3D%22%23999%22%3ENo%20Image%3C%2Ftext%3E%3C%2Fsvg%3E' ?>"
-     alt="<?= htmlspecialchars($row['name']) ?>"
-     class="card-img">
-                        <!-- Wishlist heart removed -->
+                <div class="card-img-wrap">
+                    <img class="card-img"
+                    src="<?= !empty($row['image']) ? '../imgs/products/' . htmlspecialchars($row['image']) : 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22100%25%22%20height%3D%22100%25%22%20viewBox%3D%220%200%20100%20100%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%23f0f0f0%22%2F%3E%3Ctext%20x%3D%2250%22%20y%3D%2250%22%20font-size%3D%2212%22%20text-anchor%3D%22middle%22%20dy%3D%22.3em%22%20fill%3D%22%23999%22%3ENo%20Image%3C%2Ftext%3E%3C%2Fsvg%3E' ?>"
+                    alt="<?= htmlspecialchars($row['name']) ?>">
 
-                        <?php if ($outOfStock): ?>
-                            <span class="card-badge out">Out of Stock</span>
-                        <?php elseif ($lowStock): ?>
-                            <span class="card-badge low">Only <?= (int)$row['stock'] ?> left!</span>
-                        <?php endif; ?>
-                    </div>
+                <!-- Wishlist heart removed -->
+
+                <?php if ($outOfStock): ?>
+                    <span class="card-badge out">Out of Stock</span>
+                <?php elseif ($lowStock): ?>
+                    <span class="card-badge low">Only <?= (int)$row['stock'] ?> left!</span>
+                <?php endif; ?>
+            </div>
 
                     <div class="card-body">
                         <p class="card-name"><?= htmlspecialchars($row['name']) ?></p>
@@ -461,118 +462,6 @@ include '../includes/cart-panel.php';
 </div>
 
 <script src="../scripts/cart-panel.js"></script>
-<script>
-// ── Toast ─────────────────────────────────────────────
-function toast(msg) {
-    const el = document.getElementById('toast');
-    document.getElementById('toastMsg').textContent = msg;
-    el.classList.add('show');
-    clearTimeout(el._t);
-    el._t = setTimeout(() => el.classList.remove('show'), 2600);
-}
-
-
-function addToCart(btn, productId) {
-    fetch('../includes/add.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ product_id: productId })
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            toast('Added to cart');
-            if (typeof CartPanel !== 'undefined') {
-                CartPanel.open();
-                CartPanel.render();
-            }
-        } else {
-            toast(data.message || 'Error adding to cart');
-        }
-    })
-    .catch(err => {
-        console.error(err);
-        toast('Something went wrong');
-    });
-}
-
-function buyNow(id) {
-    // Change this to go to viewitems.php first, not checkout
-    window.location.href = '../user/viewitems.php?id=' + id;
-}
-
-// ── Smart search ──────────────────────────────────────
-const searchInput   = document.getElementById('searchInput');
-const searchResults = document.getElementById('searchResults');
-let searchTimer;
-
-searchInput.addEventListener('input', () => {
-    clearTimeout(searchTimer);
-    const q = searchInput.value.trim();
-
-    if (q.length < 2) {
-        searchResults.classList.remove('open');
-        searchResults.innerHTML = '';
-        return;
-    }
-
-    searchTimer = setTimeout(() => {
-        const cat = '<?= addslashes($category) ?>';
-        fetch(`../includes/search-suggestions.php?q=${encodeURIComponent(q)}&cat=${encodeURIComponent(cat)}`)
-            .then(r => {
-                if (!r.ok) throw new Error('Network error');
-                return r.json();
-            })
-            .then(data => {
-                if (!data || !data.length) {
-                    searchResults.classList.remove('open');
-                    return;
-                }
-
-                searchResults.innerHTML = data.map(item => `
-                    <div class="search-result-item" data-name="${item.name.replace(/"/g,'&quot;')}">
-                        <span class="suggest-name">${item.name}</span>
-                        <span class="suggest-cat">${item.category}</span>
-                    </div>
-                `).join('');
-
-                searchResults.classList.add('open');
-
-                searchResults.querySelectorAll('.search-result-item').forEach(row => {
-                    row.addEventListener('click', () => {
-                        searchInput.value = row.dataset.name;
-                        searchResults.classList.remove('open');
-                        document.getElementById('searchForm').submit();
-                    });
-                });
-            })
-            .catch(err => {
-                console.warn('Search suggestions failed:', err);
-                searchResults.classList.remove('open');
-            });
-    }, 280);
-});
-
-searchInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter')  { searchResults.classList.remove('open'); }
-    if (e.key === 'Escape') { searchResults.classList.remove('open'); }
-});
-
-document.addEventListener('click', e => {
-    if (!e.target.closest('.search-field-wrap')) {
-        searchResults.classList.remove('open');
-    }
-});
-
-// ── Filter form: radio auto-submit ───────────────────
-document.querySelectorAll('#filterForm input[type="radio"]').forEach(r => {
-    r.addEventListener('change', () => document.getElementById('filterForm').submit());
-});
-
-// ── Price slider: submit on release ──────────────────
-document.getElementById('priceRange').addEventListener('change', () => {
-    document.getElementById('filterForm').submit();
-});
-</script>
+<script src="../scripts/category.js"></script>
 </body>
 </html>

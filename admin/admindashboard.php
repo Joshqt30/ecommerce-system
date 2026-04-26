@@ -2,9 +2,9 @@
 session_start();
 
 // ── Auth guard ────────────────────────────────────────
- if (!isset($_SESSION['admin_id']) || $_SESSION['role'] !== 'admin') {
-     header('Location: ../auth/login.php');
-     exit;
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+    header('Location: ../auth/login.php');
+    exit;
 }
 
 include '../config/db.php';
@@ -58,43 +58,44 @@ $totalProducts = $r ? (int)pg_fetch_result($r, 0, 'cnt') : 0;
 $r = pg_query($conn, "SELECT COUNT(*) AS cnt FROM products WHERE stock <= 5");
 $lowStockCount = $r ? (int)pg_fetch_result($r, 0, 'cnt') : 0;
 
-// ── Chart: daily sales this week (Sun–Sat) ────────────
+// ── Chart: // This month daily sales
 $r = pg_query($conn,
     "SELECT
-         EXTRACT(DOW FROM created_at)::int AS dow,
+         EXTRACT(DAY FROM created_at)::int AS day,
          COALESCE(SUM(total), 0)           AS daily_total
      FROM orders
      WHERE status != 'cancelled'
-       AND created_at >= DATE_TRUNC('week', NOW())
-       AND created_at <  DATE_TRUNC('week', NOW()) + INTERVAL '7 days'
-     GROUP BY dow
-     ORDER BY dow"
+       AND created_at >= DATE_TRUNC('month', NOW())
+       AND created_at <  DATE_TRUNC('month', NOW()) + INTERVAL '1 month'
+     GROUP BY day
+     ORDER BY day"
 );
-$thisWeekRaw = array_fill(0, 7, 0);
+$thisMonthRaw = array_fill(1, 31, 0);
 if ($r) {
     while ($row = pg_fetch_assoc($r)) {
-        $thisWeekRaw[(int)$row['dow']] = (float)$row['daily_total'];
+        $thisMonthRaw[(int)$row['day']] = (float)$row['daily_total'];
     }
 }
 
-// ── Chart: daily sales last week ──────────────────────
+  // ── Chart: daily sales last month ──────────────────────
 $r = pg_query($conn,
     "SELECT
-         EXTRACT(DOW FROM created_at)::int AS dow,
+         EXTRACT(DAY FROM created_at)::int AS day,
          COALESCE(SUM(total), 0)           AS daily_total
      FROM orders
      WHERE status != 'cancelled'
-       AND created_at >= DATE_TRUNC('week', NOW()) - INTERVAL '7 days'
-       AND created_at <  DATE_TRUNC('week', NOW())
-     GROUP BY dow
-     ORDER BY dow"
+       AND created_at >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month'
+       AND created_at <  DATE_TRUNC('month', NOW())
+     GROUP BY day
+     ORDER BY day"
 );
-$lastWeekRaw = array_fill(0, 7, 0);
+$lastMonthRaw = array_fill(1, 31, 0);
 if ($r) {
     while ($row = pg_fetch_assoc($r)) {
-        $lastWeekRaw[(int)$row['dow']] = (float)$row['daily_total'];
+        $lastMonthRaw[(int)$row['day']] = (float)$row['daily_total'];
     }
 }
+
 
 // ── Stats bar ─────────────────────────────────────────
 // Active customers this week
@@ -155,7 +156,7 @@ if ($r) {
     while ($row = pg_fetch_assoc($r)) $lowStockProducts[] = $row;
 }
 
-$adminName = $_SESSION['admin_name'] ?? 'Admin';
+$adminName = $_SESSION['username'] ?? 'Admin';
 
 // ── Helper: format large numbers ─────────────────────
 function shortNum(int|float $n): string {
@@ -435,16 +436,18 @@ function shortNum(int|float $n): string {
       margin-bottom: 16px;
     }
 
-    .chart-stat-item {
-      padding: 10px 0 14px;
-      border-bottom: 3px solid transparent;
-      cursor: pointer;
-      transition: border-color .18s;
-    }
+  .chart-stat-item {
+  padding: 10px 0 14px;
+  border-bottom: 3px solid transparent;
+  }
 
-    .chart-stat-item.active-stat { border-bottom-color: var(--green-dark); }
-    .chart-stat-item:hover { border-bottom-color: var(--green); }
-
+  .icon-btn {
+  padding: 5px 10px;          /* same vertical padding as .chart-tab */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+  
     .csi-value { font-size: 17px; font-weight: 700; letter-spacing: -.4px; }
     .csi-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
@@ -594,7 +597,6 @@ $current_file = basename($_SERVER['PHP_SELF']);
         <span class="stat-trend <?= $salesTrend >= 0 ? 'trend-up' : 'trend-down' ?>">
           <?= $salesTrend >= 0 ? '↑' : '↓' ?> <?= abs($salesTrend) ?>% vs last month
         </span>
-        <button class="stat-menu">⋯</button>
       </div>
 
       <div class="stat-card">
@@ -603,14 +605,12 @@ $current_file = basename($_SERVER['PHP_SELF']);
         <span class="stat-trend <?= $ordersTrend >= 0 ? 'trend-up' : 'trend-down' ?>">
           <?= $ordersTrend >= 0 ? '↑' : '↓' ?> <?= abs($ordersTrend) ?>% vs last month
         </span>
-        <button class="stat-menu">⋯</button>
       </div>
 
       <div class="stat-card">
         <span class="stat-label">Total Products</span>
         <span class="stat-value"><?= number_format($totalProducts) ?></span>
         <span class="stat-trend trend-up">↑ Active in store</span>
-        <button class="stat-menu">⋯</button>
       </div>
 
       <div class="stat-card">
@@ -621,7 +621,6 @@ $current_file = basename($_SERVER['PHP_SELF']);
         <span class="stat-trend <?= $lowStockCount > 0 ? 'trend-down' : 'trend-up' ?>">
           <?= $lowStockCount > 0 ? '⚠ Needs attention' : '✓ Stock healthy' ?>
         </span>
-        <button class="stat-menu">⋯</button>
       </div>
 
     </div>
@@ -633,10 +632,16 @@ $current_file = basename($_SERVER['PHP_SELF']);
         <div class="chart-header">
           <span class="chart-title">Sales &amp; Orders Overview</span>
           <div class="chart-tabs">
-            <button class="chart-tab active" id="tabThis" onclick="switchChart('this')">This week</button>
-            <button class="chart-tab"        id="tabLast" onclick="switchChart('last')">Last week</button>
-            <button class="chart-menu">⋯</button>
-          </div>
+            <button class="chart-tab active" id="tabThis" onclick="switchChart('this')">This month</button>
+            <button class="chart-tab"        id="tabLast" onclick="switchChart('last')">Last month</button>
+        <button class="chart-tab icon-btn" onclick="exportCSV()" title="Export data as CSV">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+        </button>          
+      </div>
         </div>
 
         <div class="chart-stats">
@@ -735,9 +740,10 @@ $current_file = basename($_SERVER['PHP_SELF']);
 </div>
 
 <script>
-const thisWeekData = <?= json_encode(array_values($thisWeekRaw)) ?>;
-const lastWeekData = <?= json_encode(array_values($lastWeekRaw)) ?>;
-const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const labels = Array.from({length: 31}, (_, i) => i + 1);
+const thisWeekData = <?= json_encode(array_values($thisMonthRaw)) ?>;
+const lastWeekData = <?= json_encode(array_values($lastMonthRaw)) ?>;
+// and use `labels` instead of `days`
 
 const ctx = document.getElementById('salesChart').getContext('2d');
 const grad = ctx.createLinearGradient(0, 0, 0, 200);
@@ -747,7 +753,7 @@ grad.addColorStop(1, 'rgba(74,222,128,0.0)');
 const chart = new Chart(ctx, {
   type: 'line',
   data: {
-    labels: days,
+    labels: labels,
     datasets: [{
       data: thisWeekData,
       borderColor: '#4ade80',
@@ -804,6 +810,26 @@ function switchChart(week) {
   document.getElementById('tabThis').classList.toggle('active', week === 'this');
   document.getElementById('tabLast').classList.toggle('active', week === 'last');
 }
+
+function exportCSV() {
+  // Determine which dataset is currently shown
+  const currentData = chart.data.datasets[0].data;
+  const currentLabels = chart.data.labels;
+
+  let csv = 'Day,Sales\n';
+  currentLabels.forEach((day, idx) => {
+    csv += `${day},${currentData[idx] || 0}\n`;
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `sales_${document.getElementById('tabThis').classList.contains('active') ? 'this' : 'last'}_month.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 </script>
 </body>
 </html>

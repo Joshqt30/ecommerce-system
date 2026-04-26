@@ -2,55 +2,84 @@
 session_start();
 require_once "../config/db.php";
 
-// Redirect if already logged in as regular user
-if (isset($_SESSION['user_id']) && (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin')) {
+/* =========================
+   INIT STATE
+========================= */
+$error = null;
+$logoutMessage = isset($_GET['logout']) && $_GET['logout'] === 'success';
+
+/* =========================
+   REDIRECT IF ALREADY LOGGED IN
+========================= */
+if (isset($_SESSION['user_id'])) {
+    if (strtolower($_SESSION['role'] ?? 'user') === 'admin') {
+        header("Location: ../admin/admindashboard.php");
+        exit();
+    }
     header("Location: ../user/dashboard.php");
     exit();
 }
-// If already logged in as admin, go to admin dashboard
-if (isset($_SESSION['admin_id']) && $_SESSION['role'] === 'admin') {
-    header("Location: ../admin/admindashboard.php");
-    exit();
-}
 
-$logoutMessage = false;
-if (isset($_GET['logout']) && $_GET['logout'] === 'success') {
-    $logoutMessage = true;
-}
-
+/* =========================
+   LOGIN HANDLER
+========================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
-    $username = trim($_POST['username']);
-    $password = $_POST['password'];
 
-    // Get user with role (assumes 'role' column exists)
-    $query = "SELECT id, username, password, COALESCE(role, 'user') AS role FROM users WHERE username = $1";
-    $result = pg_query_params($conn, $query, array($username));
+    $username = trim($_POST['username'] ?? '');
+    $password = $_POST['password'] ?? '';
 
-    if ($result && pg_num_rows($result) === 1) {
-        $user = pg_fetch_assoc($result);
-
-        if (password_verify($password, $user['password'])) {
-            // Common session data
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['username'] = $user['username'];
-
-            if ($user['role'] === 'admin') {
-                $_SESSION['admin_id'] = $user['id'];
-                $_SESSION['role'] = 'admin';
-                header("Location: ../admin/admindashboard.php");
-            } else {
-                $_SESSION['role'] = 'user';
-                header("Location: ../user/dashboard.php");
-            }
-            exit();
-        } else {
-            $error = "Incorrect password.";
-        }
+    /* validate empty input */
+    if ($username === '' || $password === '') {
+        $error = "Please fill in all fields.";
     } else {
-        $error = "Username not found.";
+
+        $query = "SELECT id, username, password, COALESCE(role, 'user') AS role 
+                  FROM users 
+                  WHERE username = $1 
+                  LIMIT 1";
+
+        $result = pg_query_params($conn, $query, [$username]);
+
+        if ($result && pg_num_rows($result) === 1) {
+
+            $user = pg_fetch_assoc($result);
+
+            if (password_verify($password, $user['password'])) {
+
+                /* =========================
+                   SECURITY: NEW SESSION ID
+                ========================= */
+                session_regenerate_id(true);
+
+                /* =========================
+                   STORE SESSION
+                ========================= */
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['username'] = $user['username'];
+                $_SESSION['role'] = $user['role'];
+
+                /* =========================
+                   REDIRECT BY ROLE
+                ========================= */
+            if (strtolower($_SESSION['role'] ?? 'user') === 'admin') {
+                header("Location: ../admin/admindashboard.php");
+                } else {
+                    header("Location: ../user/dashboard.php");
+                }
+
+                exit();
+
+            } else {
+                $error = "Invalid credentials.";
+            }
+
+        } else {
+            $error = "Invalid credentials.";
+        }
     }
 }
 ?>
+
 <!doctype html>
 <html lang="en">
 <head>

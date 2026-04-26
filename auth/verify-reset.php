@@ -1,9 +1,17 @@
 <?php
 session_start();
+
 require_once "../vendor/autoload.php";
 
+use Dotenv\Dotenv;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
+
+/* =========================
+   LOAD .ENV
+========================= */
+$dotenv = Dotenv::createImmutable(__DIR__ . "/..");
+$dotenv->load();
 
 /* =========================
    SECURITY GUARD
@@ -16,7 +24,7 @@ if (!isset($_SESSION['reset_email'], $_SESSION['reset_otp'])) {
 $email = $_SESSION['reset_email'];
 
 /* =========================
-   OTP EXPIRATION (10 MIN LIMIT)
+   OTP EXPIRATION (10 MIN)
 ========================= */
 if (!isset($_SESSION['reset_otp_time'])) {
     $_SESSION['reset_otp_time'] = time();
@@ -34,7 +42,7 @@ if (time() - $_SESSION['reset_otp_time'] > 600) {
 }
 
 /* =========================
-   SEND OTP EMAIL ONLY ONCE
+   SEND OTP EMAIL ONCE
 ========================= */
 if (empty($_SESSION['reset_otp_sent'])) {
 
@@ -42,16 +50,16 @@ if (empty($_SESSION['reset_otp_sent'])) {
 
     try {
         $mail->isSMTP();
-        $mail->Host = 'smtp.gmail.com';
+        $mail->Host = $_ENV['SMTP_HOST'];
         $mail->SMTPAuth = true;
 
-        $mail->Username = 'makers0358@gmail.com';
-        $mail->Password = 'plqdvmjsrtomputu';
+        $mail->Username = $_ENV['SMTP_USER'];
+        $mail->Password = $_ENV['SMTP_PASS'];
 
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port = 587;
+        $mail->Port = $_ENV['SMTP_PORT'];
 
-        $mail->setFrom('YOUR_EMAIL@gmail.com', 'E-Commerce');
+        $mail->setFrom($_ENV['SMTP_FROM'], $_ENV['SMTP_NAME']);
         $mail->addAddress($email);
 
         $mail->isHTML(true);
@@ -63,7 +71,7 @@ if (empty($_SESSION['reset_otp_sent'])) {
         $_SESSION['reset_otp_sent'] = true;
 
     } catch (Exception $e) {
-        error_log("Email failed: " . $mail->ErrorInfo);
+    error_log("OTP Email failed: " . $mail->ErrorInfo);
     }
 }
 
@@ -81,22 +89,21 @@ if (isset($_POST['verify'])) {
         $_POST['otp6'] ?? ''
     ];
 
-    // ensure no empty input
+    // check if any empty field
     if (in_array('', $inputs, true)) {
         echo "<script>alert('Please complete all OTP fields');</script>";
+        exit();
+    }
+
+    $inputOtp = implode('', $inputs);
+
+    if ($inputOtp == $_SESSION['reset_otp']) {
+
+        header("Location: new-password.php");
+        exit();
+
     } else {
-
-        $inputOtp = implode('', $inputs);
-
-        if ($inputOtp == $_SESSION['reset_otp']) {
-
-            // move to password reset step
-            header("Location: new-password.php");
-            exit();
-
-        } else {
-            echo "<script>alert('Invalid OTP');</script>";
-        }
+        echo "<script>alert('Invalid OTP');</script>";
     }
 }
 ?>

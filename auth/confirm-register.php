@@ -18,8 +18,8 @@ $email = $_SESSION['reg_email'];
 /* =========================
    OTP GENERATION (ALWAYS READY)
 ========================= */
-if (!isset($_SESSION['otp'])) {
-    $_SESSION['otp'] = rand(100000, 999999);
+if (!isset($_SESSION['otp'], $_SESSION['otp_time'])) {
+    $_SESSION['otp'] = random_int(100000, 999999);
     $_SESSION['otp_time'] = time();
 }
 
