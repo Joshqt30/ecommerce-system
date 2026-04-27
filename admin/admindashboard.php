@@ -135,9 +135,11 @@ $r = pg_query($conn,
             TO_CHAR(o.created_at, 'Mon DD, YYYY') AS date
      FROM orders o
      LEFT JOIN users u ON u.id = o.user_id
+     WHERE u.role IS NULL OR u.role != 'admin'
      ORDER BY o.created_at DESC
      LIMIT 5"
 );
+
 $recentOrders = [];
 if ($r) {
     while ($row = pg_fetch_assoc($r)) $recentOrders[] = $row;
@@ -173,6 +175,7 @@ function shortNum(int|float $n): string {
   <title>Dashboard – Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link rel="stylesheet" href="../assets/css/admin-header.css"/>
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
@@ -574,13 +577,41 @@ $current_file = basename($_SERVER['PHP_SELF']);
 
     <div class="page-header">
       <h1 class="page-title">Dashboard</h1>
-      <button class="btn-admin">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="8" r="4"/>
-          <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-        </svg>
-        <?= htmlspecialchars($adminName) ?>
-      </button>
+    <?php 
+      $adminName = $_SESSION['username'] ?? 'Admin';
+      $adminEmail = $_SESSION['email'] ?? 'admin@example.com'; // you may want to fetch from DB, but for demo this is fine
+      ?>
+      <div class="account-wrap" id="accountWrap">
+          <button class="account-btn" id="accountBtn" aria-label="Account menu">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="8" r="4"/>
+                  <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+              </svg>
+          </button>
+          <div class="account-dropdown" id="accountDropdown">
+              <div class="dd-profile">
+                  <div class="dd-avatar">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="12" cy="8" r="4"/>
+                          <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                      </svg>
+                  </div>
+                  <p class="dd-name"><?= htmlspecialchars($adminName) ?></p>
+                  <p class="dd-email"><?= htmlspecialchars($adminEmail) ?></p>
+              </div>
+              <div class="dd-divider"></div>
+              <a href="../auth/logout.php" class="dd-item dd-logout">
+                  <span class="dd-item-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+                          <polyline points="16 17 21 12 16 7"/>
+                          <line x1="21" y1="12" x2="9" y2="12"/>
+                      </svg>
+                  </span>
+                  Log out
+              </a>
+          </div>
+      </div>
     </div>
 
     <!-- Stat cards -->
@@ -825,6 +856,32 @@ function exportCSV() {
   URL.revokeObjectURL(url);
 }
 
+(function() {
+    const btn      = document.getElementById('accountBtn');
+    const dropdown = document.getElementById('accountDropdown');
+    const wrap     = document.getElementById('accountWrap');
+    if (!btn) return;
+
+    btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const isOpen = dropdown.classList.toggle('open');
+        btn.classList.toggle('active', isOpen);
+    });
+
+    document.addEventListener('click', e => {
+        if (!wrap.contains(e.target)) {
+            dropdown.classList.remove('open');
+            btn.classList.remove('active');
+        }
+    });
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            dropdown.classList.remove('open');
+            btn.classList.remove('active');
+        }
+    });
+})();
 </script>
 </body>
 </html>

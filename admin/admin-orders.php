@@ -144,6 +144,7 @@ function orderStatusStyle(string $status): array {
   <title>Orders – Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link rel="stylesheet" href="../assets/css/admin-header.css"/>
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -214,6 +215,17 @@ function orderStatusStyle(string $status): array {
     .product-cell { display: flex; align-items: center; gap: 12px; }
     .product-thumb { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; background: #f5f5f5; flex-shrink: 0; border: 1px solid var(--border); }
     .product-name { font-weight: 500; font-size: 13px; color: var(--text); line-height: 1.35; }
+    .extra-items-badge {
+    display: inline-block;
+    background: #e0f2fe;
+    color: #0369a1;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 12px;
+    margin-left: 6px;
+    vertical-align: middle;
+}
     .col-price { font-weight: 600; font-size: 13px; }
 
     /* Payment toggle button */
@@ -324,10 +336,41 @@ function orderStatusStyle(string $status): array {
 
     <div class="page-header">
       <h1 class="page-title">Order Management</h1>
-      <button class="btn-admin">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-        <?= htmlspecialchars($adminName) ?>
-      </button>
+<?php 
+$adminName = $_SESSION['username'] ?? 'Admin';
+$adminEmail = $_SESSION['email'] ?? 'admin@example.com'; // you may want to fetch from DB, but for demo this is fine
+?>
+<div class="account-wrap" id="accountWrap">
+    <button class="account-btn" id="accountBtn" aria-label="Account menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="8" r="4"/>
+            <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+        </svg>
+    </button>
+    <div class="account-dropdown" id="accountDropdown">
+        <div class="dd-profile">
+            <div class="dd-avatar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="8" r="4"/>
+                    <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                </svg>
+            </div>
+            <p class="dd-name"><?= htmlspecialchars($adminName) ?></p>
+            <p class="dd-email"><?= htmlspecialchars($adminEmail) ?></p>
+        </div>
+        <div class="dd-divider"></div>
+        <a href="../auth/logout.php" class="dd-item dd-logout">
+            <span class="dd-item-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+                    <polyline points="16 17 21 12 16 7"/>
+                    <line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+            </span>
+            Log out
+        </a>
+    </div>
+</div>
     </div>
 
     <div class="table-card">
@@ -379,14 +422,20 @@ function orderStatusStyle(string $status): array {
             <tr>
               <td class="col-no"><?= $rowNo ?></td>
               <td class="col-oid">#<?= htmlspecialchars($o['order_id']) ?></td>
-              <td>
-                <div class="product-cell">
-            <img src="<?= PRODUCT_IMGS_BASE . htmlspecialchars($o['image']) ?>"
-            alt="<?= htmlspecialchars($o['product']) ?>"
-            class="product-thumb"
-            onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22 viewBox=%220 0 40 40%22%3E%3Crect width=%2240%22 height=%2240%22 fill=%22%23f3f4f6%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%239ca3af%22 font-size=%2210%22%3ENo img%3C/text%3E%3C/svg%3E'">
-                </div>
-              </td>
+                <td>
+              <div class="product-cell">
+                  <img src="<?= PRODUCT_IMGS_BASE . htmlspecialchars($o['image']) ?>"
+                      alt="<?= htmlspecialchars($o['product']) ?>"
+                      class="product-thumb"
+                      onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22 viewBox=%220 0 40 40%22%3E%3Crect width=%2240%22 height=%2240%22 fill=%22%23f3f4f6%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%239ca3af%22 font-size=%2210%22%3ENo img%3C/text%3E%3C/svg%3E'">
+                  <div>
+                      <span class="product-name"><?= htmlspecialchars($o['product']) ?></span>
+                      <?php if (($o['item_count'] ?? 1) > 1): ?>
+                          <span class="extra-items-badge">+<?= $o['item_count'] - 1 ?> more</span>
+                      <?php endif; ?>
+                  </div>
+              </div>
+          </td>
               <td><?= htmlspecialchars($o['date']) ?></td>
               <td class="col-price">₱<?= number_format((float)$o['price'], 2) ?></td>
               <td>
@@ -511,6 +560,33 @@ document.querySelectorAll('.status-select').forEach(select => {
   // set initial background
   select.style.backgroundColor = colorMap[select.value] || '#f9fafb';
 });
+
+(function() {
+    const btn      = document.getElementById('accountBtn');
+    const dropdown = document.getElementById('accountDropdown');
+    const wrap     = document.getElementById('accountWrap');
+    if (!btn) return;
+
+    btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const isOpen = dropdown.classList.toggle('open');
+        btn.classList.toggle('active', isOpen);
+    });
+
+    document.addEventListener('click', e => {
+        if (!wrap.contains(e.target)) {
+            dropdown.classList.remove('open');
+            btn.classList.remove('active');
+        }
+    });
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            dropdown.classList.remove('open');
+            btn.classList.remove('active');
+        }
+    });
+})();
 </script>
 </body>
 </html>

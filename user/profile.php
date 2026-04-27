@@ -13,61 +13,66 @@ include '../includes/cart-panel.php';
 $user_id = $_SESSION['user_id'];
 $tab = $_GET['tab'] ?? 'profile';
 
-/* =========================
-   FETCH USER (POSTGRES)
-========================= */
 $userQuery = "SELECT username, email, phone, birth_date, address FROM users WHERE id = $1";
 $userResult = pg_query_params($conn, $userQuery, [$user_id]);
 
 $user = pg_fetch_assoc($userResult);
 
-/* =========================
-   UPDATE PROFILE
-========================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
 
-    $username = $_POST['username'] ?? '';
-    $email    = $_POST['email'] ?? '';
-    $phone    = $_POST['phone'] ?? '';
-    $birth    = $_POST['birth_date'] ?? '';
-    $address  = $_POST['address'] ?? '';
+    $username = trim($_POST['username'] ?? '');
+    $email    = trim($_POST['email'] ?? '');
+    $phone    = trim($_POST['phone'] ?? '');
+    $birth    = trim($_POST['birth_date'] ?? '');
+    $address  = trim($_POST['address'] ?? '');
 
-    $updateQuery = "
-        UPDATE users 
-        SET username = $1, email = $2, phone = $3, birth_date = $4, address = $5 
-        WHERE id = $6
-    ";
+    $birth = ($birth === '') ? null : $birth;
 
-    $updateResult = pg_query_params($conn, $updateQuery, [
-        $username,
-        $email,
-        $phone,
-        $birth,
-        $address,
-        $user_id
-    ]);
-
-    if ($updateResult) {
-        $success = "Profile updated!";
-
-        // refresh data
-        $userResult = pg_query_params($conn, $userQuery, [$user_id]);
-        $user = pg_fetch_assoc($userResult);
+    if (
+        $username === $user['username'] &&
+        $email === $user['email'] &&
+        $phone === $user['phone'] &&
+        $birth === $user['birth_date'] &&
+        $address === $user['address']
+    ) {
+        $error = "No changes detected.";
     } else {
-        $error = "Update failed: " . pg_last_error($conn);
+
+        $updateQuery = "
+            UPDATE users 
+            SET username = $1,
+                email = $2,
+                phone = $3,
+                birth_date = $4,
+                address = $5
+            WHERE id = $6
+        ";
+
+        $updateResult = pg_query_params($conn, $updateQuery, [
+            $username,
+            $email,
+            $phone,
+            $birth,
+            $address,
+            $user_id
+        ]);
+
+        if ($updateResult) {
+            $success = "Profile updated!";
+            $userResult = pg_query_params($conn, $userQuery, [$user_id]);
+            $user = pg_fetch_assoc($userResult);
+        } else {
+            $error = pg_last_error($conn);
+        }
     }
 }
 
-/* =========================
-   CHANGE PASSWORD
-========================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
 
     $current = $_POST['current_password'] ?? '';
     $new     = $_POST['new_password'] ?? '';
     $confirm = $_POST['confirm_password'] ?? '';
 
-    // get current hashed password
     $passQuery = "SELECT password FROM users WHERE id = $1";
     $passResult = pg_query_params($conn, $passQuery, [$user_id]);
     $row = pg_fetch_assoc($passResult);
@@ -91,9 +96,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
     }
 }
 
-/* =========================
-   FETCH ORDERS (POSTGRES)
-========================= */
 $orders = [];
 
 $orderQuery = "
@@ -119,7 +121,7 @@ if ($orderResult) {
                 'items'      => []
             ];
         }
-        // Add item if exists
+
         if ($row['product_name']) {
             $orders[$orderId]['items'][] = [
                 'variant_id' => $row['variant_id'],
@@ -131,8 +133,43 @@ if ($orderResult) {
         }
     }
 }
-// Re-index to simple array
+
 $orders = array_values($orders);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_account'])) {
+
+    $deleteItems = pg_query_params(
+        $conn,
+        "DELETE FROM order_items 
+         WHERE order_id IN (
+             SELECT id FROM orders WHERE user_id = $1
+         )",
+        [$user_id]
+    );
+
+    $deleteOrders = pg_query_params(
+        $conn,
+        "DELETE FROM orders WHERE user_id = $1",
+        [$user_id]
+    );
+
+    $deleteUser = pg_query_params(
+        $conn,
+        "DELETE FROM users WHERE id = $1",
+        [$user_id]
+    );
+
+    if ($deleteUser) {
+
+    session_destroy();
+
+    echo "<script>
+            alert('Account deleted successfully.');
+            window.location='../auth/login.php';
+          </script>";
+    exit();
+}
+}
 ?>
 
 <!doctype html>
@@ -187,8 +224,16 @@ $orders = array_values($orders);
     <!-- ── Profile card ───────────────────────────────── -->
     <div class="account-card <?= $tab === 'profile' ? 'active' : '' ?>">
 
-     <?php if (isset($success)): ?>
-            <p style="color: green; margin-bottom:10px;"><?= $success ?></p>
+        <?php if (isset($success)): ?>
+            <p style="color: green; margin-bottom:10px;">
+                <?= $success ?>
+            </p
+        <?php endif; ?>
+        
+        <?php if (isset($error)): ?>
+            <p style="color: red; margin-bottom:10px;">
+                <?= $error ?>
+            </p>
         <?php endif; ?>
 
         <form method="POST">
@@ -200,29 +245,29 @@ $orders = array_values($orders);
         <div class="form-grid">
             <div class="field">
                 <label class="field-label">Username</label>
-                <input class="field-input" type="text" value="<?= htmlspecialchars($user['username'] ?? '') ?>" placeholder="First name">
+                <input class="field-input" type="text" name="username" value="<?= htmlspecialchars($user['username'] ?? '') ?>" placeholder="First name">
             </div>
         </div>
         <div class="form-grid single">
             <div class="field">
                 <label class="field-label">Email Address</label>
-                <input class="field-input" type="email" value="<?= htmlspecialchars($user['email'] ?? '') ?>" placeholder="Email address">
+                <input class="field-input" type="email" name="email" value="<?= htmlspecialchars($user['email'] ?? '') ?>" placeholder="Email address">
             </div>
         </div>
         <div class="form-grid">
             <div class="field">
                 <label class="field-label">Phone Number</label>
-                <input class="field-input" type="tel" value="<?= htmlspecialchars($user['phone'] ?? '') ?>" placeholder="Phone number">
+                <input class="field-input" type="tel" name="phone" value="<?= htmlspecialchars($user['phone'] ?? '') ?>" placeholder="Phone number" required>
             </div>
             <div class="field">
                 <label class="field-label">Date of Birth</label>
-                <input class="field-input" type="date" value="<?= htmlspecialchars($user['birth_date'] ?? '') ?>" placeholder="Date of birth">
+                <input class="field-input" type="date" name="birth_date" value="<?= htmlspecialchars($user['birth_date'] ?? '') ?>" placeholder="Date of birth" required>
             </div>
         </div>
         <div class="form-grid single">
             <div class="field">
                 <label class="field-label">Delivery Address</label>
-                <input class="field-input" type="text" value="<?= htmlspecialchars($user['address'] ?? '') ?>" placeholder="Street, City, Province, ZIP">
+                <input class="field-input" type="text" name="address" value="<?= htmlspecialchars($user['address'] ?? '') ?>" placeholder="Street, City, Province, ZIP" required>
             </div>
         </div>
                 <button class="btn-save" type="submit">Save Changes</button>
@@ -304,17 +349,17 @@ $orders = array_values($orders);
         <div class="form-grid single" style="margin-bottom:14px;">
             <div class="field">
                 <label class="field-label">Current Password</label>
-                <input class="field-input" type="password" name="current_password" placeholder="Enter current password">
+                <input class="field-input" type="password" name="current_password" placeholder="Enter current password" required>
             </div>
         </div>
         <div class="form-grid" style="margin-bottom:16px;">
             <div class="field">
                 <label class="field-label">New Password</label>
-                <input class="field-input" type="password" name="new_password" placeholder="New password">
+                <input class="field-input" type="password" name="new_password" placeholder="New password" required>
             </div>
             <div class="field">
                 <label class="field-label">Confirm Password</label>
-                <input class="field-input" type="password" name="confirm_password" placeholder="Confirm new password">
+                <input class="field-input" type="password" name="confirm_password" placeholder="Confirm new password" required>
             </div>
         </div>
         <button class="btn-save" type="submit">Update Password</button>
@@ -366,10 +411,13 @@ $orders = array_values($orders);
                     <p class="danger-title">Delete Account</p>
                     <p class="danger-desc">Permanently delete your account. This cannot be undone.</p>
                 </div>
-                <button class="btn-danger"
-                        onclick="if(confirm('Delete your account? This cannot be undone.')) toast('Account deletion requested. (demo)')">
-                    Delete Account
-                </button>
+                <form method="POST"
+                    onsubmit="return confirm('Delete your account permanently? This cannot be undone.');">
+                    <input type="hidden" name="delete_account" value="1">
+                    <button type="submit" class="btn-danger">
+                        Delete Account
+                    </button>
+                </form>
             </div>
         </div>
     </div>

@@ -116,6 +116,7 @@ $adminName = $_SESSION['username'] ?? 'Admin';
   <title>Customers – Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link rel="stylesheet" href="../assets/css/admin-header.css"/> 
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <style>
     /* ── Same CSS as original, no changes needed ──── */
@@ -335,10 +336,41 @@ $adminName = $_SESSION['username'] ?? 'Admin';
     <main class="main-content">
       <div class="page-header">
         <h1 class="page-title">Customers</h1>
-        <button class="btn-admin">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-          <?= htmlspecialchars($adminName) ?>
-        </button>
+ <?php 
+$adminName = $_SESSION['username'] ?? 'Admin';
+$adminEmail = $_SESSION['email'] ?? 'admin@example.com'; // you may want to fetch from DB, but for demo this is fine
+?>
+<div class="account-wrap" id="accountWrap">
+    <button class="account-btn" id="accountBtn" aria-label="Account menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="8" r="4"/>
+            <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+        </svg>
+    </button>
+    <div class="account-dropdown" id="accountDropdown">
+        <div class="dd-profile">
+            <div class="dd-avatar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="8" r="4"/>
+                    <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                </svg>
+            </div>
+            <p class="dd-name"><?= htmlspecialchars($adminName) ?></p>
+            <p class="dd-email"><?= htmlspecialchars($adminEmail) ?></p>
+        </div>
+        <div class="dd-divider"></div>
+        <a href="../auth/logout.php" class="dd-item dd-logout">
+            <span class="dd-item-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+                    <polyline points="16 17 21 12 16 7"/>
+                    <line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+            </span>
+            Log out
+        </a>
+    </div>
+</div>
       </div>
 
       <div class="table-card">
@@ -450,8 +482,7 @@ $adminName = $_SESSION['username'] ?? 'Admin';
         </div>
         <div class="panel-field">
           <div class="panel-field-label">Email</div>
-          <input class="panel-input" type="email" id="editEmail" placeholder="email@example.com"/>
-        </div>
+          <input class="panel-input" type="email" id="editEmail" placeholder="email@example.com" readonly>        </div>
         <div class="panel-field">
           <div class="panel-field-label">Phone</div>
           <input class="panel-input" type="text" id="editPhone" placeholder="+1234567890"/>
@@ -580,6 +611,33 @@ function showToast(msg, warn = false) {
   clearTimeout(el._t);
   el._t = setTimeout(() => el.classList.remove('show'), 2800);
 }
+
+(function() {
+    const btn      = document.getElementById('accountBtn');
+    const dropdown = document.getElementById('accountDropdown');
+    const wrap     = document.getElementById('accountWrap');
+    if (!btn) return;
+
+    btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const isOpen = dropdown.classList.toggle('open');
+        btn.classList.toggle('active', isOpen);
+    });
+
+    document.addEventListener('click', e => {
+        if (!wrap.contains(e.target)) {
+            dropdown.classList.remove('open');
+            btn.classList.remove('active');
+        }
+    });
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            dropdown.classList.remove('open');
+            btn.classList.remove('active');
+        }
+    });
+})();
 </script>
 </body>
 </html>
