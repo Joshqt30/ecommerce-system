@@ -1,6 +1,7 @@
 <?php
 session_start();
-include '../config/db.php';          // ← your PostgreSQL $conn
+include '../config/db.php';
+/** @var resource|\PgSql\Connection $conn */
 
 // ── Auth guard ────────────────────────────────────────
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {

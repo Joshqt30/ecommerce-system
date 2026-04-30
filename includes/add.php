@@ -2,6 +2,7 @@
 session_start();
 error_reporting(0); // Turn off warnings to avoid breaking JSON
 include '../config/db.php';
+/********** @var resource|\PgSql\Connection $conn **********/
 
 header('Content-Type: application/json');
 

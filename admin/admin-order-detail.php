@@ -5,6 +5,9 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     exit;
 }
 include '../config/db.php';
+/** @var resource|\PgSql\Connection $conn */
+
+
 define('PRODUCT_IMGS_BASE', '/ecommerce-system/imgs/products/');
 
 $orderId = (int)($_GET['id'] ?? 0);

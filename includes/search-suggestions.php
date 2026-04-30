@@ -1,6 +1,7 @@
 <?php
 
 include '../config/db.php';
+/** @var resource|\PgSql\Connection $conn */
 
 // Get and sanitize input parameters
 $q = isset($_GET['q']) ? trim($_GET['q']) : '';

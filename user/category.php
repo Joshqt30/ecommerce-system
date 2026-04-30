@@ -1,6 +1,7 @@
 <?php
 session_start();
 include '../config/db.php';
+/** @var resource|\PgSql\Connection $conn */
 
 // ── Inputs ────────────────────────────────────────────
 $category  = isset($_GET['cat'])       ? trim($_GET['cat'])        : 'All';

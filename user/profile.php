@@ -7,6 +7,8 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 include '../config/db.php';
+/** @var resource|\PgSql\Connection $conn */
+
 include '../includes/header.php';
 include '../includes/cart-panel.php';
 

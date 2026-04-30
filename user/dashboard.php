@@ -13,6 +13,7 @@ if (!isset($_SESSION['user_id'])) {
 include '../includes/cart-panel.php';
 include '../includes/header.php';
 include '../config/db.php';
+/** @var resource|\PgSql\Connection $conn */
 ?>
 
 <!doctype html>

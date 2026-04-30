@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once "../config/db.php";
+/********** @var resource|\PgSql\Connection $conn **********/
 
 if (isset($_POST['reset'])) {
 

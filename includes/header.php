@@ -3,7 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 include '../config/db.php';
-
+/** @var resource|\PgSql\Connection $conn */
 $user = null;
 
 if (isset($_SESSION['user_id'])) {

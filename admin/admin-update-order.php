@@ -6,6 +6,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     exit;
 }
 include '../config/db.php';
+/** @var resource|\PgSql\Connection $conn */
 
 $id = (int)($_POST['id'] ?? 0);
 $action = $_POST['action'] ?? '';

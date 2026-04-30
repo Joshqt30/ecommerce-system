@@ -63,6 +63,7 @@ if (isset($_POST['verify'])) {
     if ($inputOtp == $_SESSION['otp']) {
 
         require_once "../config/db.php";
+        /** @var resource|\PgSql\Connection $conn */
 
         $username = $_SESSION['reg_username'];
         $email = $_SESSION['reg_email'];

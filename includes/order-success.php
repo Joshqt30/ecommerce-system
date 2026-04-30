@@ -1,7 +1,7 @@
 <?php
 session_start();
 include '../config/db.php';
-
+/** @var resource|\PgSql\Connection $conn */
 $orderId = $_GET['id'] ?? 0;
 $userId = $_SESSION['user_id'] ?? 0;
 

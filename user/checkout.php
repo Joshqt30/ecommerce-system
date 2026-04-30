@@ -1,6 +1,7 @@
 <?php
 session_start();
 include '../config/db.php';
+/** @var resource|\PgSql\Connection $conn */
 
 // Redirect if not logged in
 if (!isset($_SESSION['user_id'])) {

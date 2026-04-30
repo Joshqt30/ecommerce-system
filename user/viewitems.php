@@ -2,6 +2,7 @@
 
 
 include '../config/db.php';
+/** @var resource|\PgSql\Connection $conn */
 
 define('PRODUCT_IMGS_BASE', '/ecommerce-system/imgs/products/');
 
