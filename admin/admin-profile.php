@@ -474,7 +474,6 @@ $current_file = basename($_SERVER['PHP_SELF']);
     <div class="profile-hero">
 
       <!-- Avatar upload -->
-      <form id="avatarForm" method="POST" enctype="multipart/form-data" style="display:contents">
         <input type="hidden" name="update_profile" value="1">
         <label class="avatar-zone" for="avatarInput" title="Click to change photo">
           <div class="avatar-circle" id="avatarCircle">
@@ -494,7 +493,6 @@ $current_file = basename($_SERVER['PHP_SELF']);
           </div>
         </label>
         <input type="file" id="avatarInput" name="avatar" accept="image/jpeg,image/png,image/webp,image/gif"/>
-      </form>
       <p class="avatar-hint" style="position:absolute;left:-9999px">JPG, PNG, WebP · Max 2MB</p>
 
       <!-- Admin info -->
@@ -637,23 +635,7 @@ $current_file = basename($_SERVER['PHP_SELF']);
 
         <button class="btn-save" type="submit">Update Password</button>
       </form>
-
-      <!-- Danger zone -->
-      <div class="section-sep">
-        <div class="section-title" style="color:#ef4444">Danger Zone</div>
-        <div class="danger-zone">
-          <div>
-            <p class="danger-title">Delete Admin Account</p>
-            <p class="danger-desc">Permanently removes your admin account and all associated data. Cannot be undone.</p>
-          </div>
-          <form method="POST"
-                onsubmit="return confirm('This will permanently delete your admin account.\nAre you absolutely sure?')">
-            <input type="hidden" name="delete_account" value="1">
-            <button type="submit" class="btn-danger">Delete Account</button>
-          </form>
         </div>
-      </div>
-    </div>
 
     <!-- ── Preferences tab ──────────────────────────── -->
     <div class="content-card <?= $tab === 'preferences' ? 'active' : '' ?>">
@@ -730,30 +712,32 @@ function showToast(msg, isError = false) {
 // ── Avatar preview — clicking the hero zone ───────────
 const avatarInput   = document.getElementById('avatarInput');
 const avatarCircle  = document.getElementById('avatarCircle');
+const avatarFormInput = document.getElementById('avatarInputForm');
 
-avatarInput.addEventListener('change', function() {
-  const file = this.files[0];
-  if (!file) return;
-  if (file.size > 2 * 1024 * 1024) {
-    showToast('File too large. Max 2MB.', true);
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = e => {
-    avatarCircle.innerHTML = `<img src="${e.target.result}" alt="Preview" style="width:100%;height:100%;object-fit:cover;border-radius:50%"/>`;
-    avatarCircle.classList.add('uploading');
-    setTimeout(() => avatarCircle.classList.remove('uploading'), 800);
-    showToast('Photo selected — save your profile to apply it.');
+if (avatarInput && avatarFormInput) {
+  avatarInput.addEventListener('change', function() {
+    const file = this.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('File too large. Max 2MB.', true);
+      return;
+    }
+    // Show preview
+    const reader = new FileReader();
+    reader.onload = e => {
+      avatarCircle.innerHTML = `<img src="${e.target.result}" alt="Preview" style="width:100%;height:100%;object-fit:cover;border-radius:50%"/>`;
+      avatarCircle.classList.add('uploading');
+      setTimeout(() => avatarCircle.classList.remove('uploading'), 800);
+      showToast('Photo selected — save your profile to apply it.');
+    };
+    reader.readAsDataURL(file);
 
-    // Copy the file to the actual form input and submit
+    // Copy file to the hidden input inside the main form
     const dt = new DataTransfer();
     dt.items.add(file);
-    document.getElementById('avatarInputForm') &&
-      (document.getElementById('avatarInputForm').files = dt.files);
-    document.querySelector('form[enctype]').submit();
-  };
-  reader.readAsDataURL(file);
-});
+    avatarFormInput.files = dt.files;
+  });
+}
 
 // ── Password strength indicator ───────────────────────
 function checkStrength(val) {

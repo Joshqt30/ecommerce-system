@@ -160,6 +160,21 @@ if ($r) {
 }
 
 $adminName = $_SESSION['username'] ?? 'Admin';
+$adminEmail = $_SESSION['email'] ?? 'admin@example.com';
+
+// ── Avatar ────────────────────────────────────────────
+$avatarRes = pg_query_params($conn,
+    "SELECT avatar FROM users WHERE id = $1",
+    [$_SESSION['user_id']]
+);
+$avatarRow = pg_fetch_assoc($avatarRes);
+$avatarFile = $avatarRow['avatar'] ?? '';
+
+if (!empty($avatarFile)) {
+    $avatarUrl = '/ecommerce-system/imgs/avatars/' . htmlspecialchars($avatarFile);
+} else {
+    $avatarUrl = null;
+}
 
 // ── Helper: format large numbers ─────────────────────
 function shortNum(int|float $n): string {
@@ -536,6 +551,41 @@ function shortNum(int|float $n): string {
       color: var(--muted);
       font-size: 13px;
     }
+
+    /* ── Admin account group (greeting + avatar) ───────── */
+.admin-account-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.admin-greeting {
+    font-size: 13px;
+    color: var(--muted);
+    font-weight: 400;
+    white-space: nowrap;
+}
+
+.admin-greeting strong {
+    font-weight: 600;
+    color: var(--text);
+}
+
+/* Avatar image inside the small button */
+.account-avatar-img {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+/* Avatar image inside the dropdown profile section */
+.dd-avatar img {
+    width: 62px;
+    height: 62px;
+    border-radius: 50%;
+    object-fit: cover;
+}
   </style>
 </head>
 <body>
@@ -578,51 +628,58 @@ $current_file = basename($_SERVER['PHP_SELF']);
 
     <div class="page-header">
       <h1 class="page-title">Dashboard</h1>
-    <?php 
-      $adminName = $_SESSION['username'] ?? 'Admin';
-      $adminEmail = $_SESSION['email'] ?? 'admin@example.com'; // you may want to fetch from DB, but for demo this is fine
-      ?>
-      <div class="account-wrap" id="accountWrap">
-          <button class="account-btn" id="accountBtn" aria-label="Account menu">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="8" r="4"/>
-                  <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-              </svg>
-          </button>
-        <div class="account-dropdown" id="accountDropdown">
-          <div class="dd-profile">
-              <div class="dd-avatar">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                      <circle cx="12" cy="8" r="4"/>
-                      <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-                  </svg>
-              </div>
-              <p class="dd-name"><?= htmlspecialchars($adminName) ?></p>
-              <p class="dd-email"><?= htmlspecialchars($adminEmail) ?></p>
-          </div>
-          <div class="dd-divider"></div>
-          <a href="../admin/admin-profile.php" class="dd-item">
-              <span class="dd-item-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <circle cx="12" cy="12" r="3"/>
-                      <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-                  </svg>
-              </span>
-              Settings
-          </a>
-          <div class="dd-divider"></div>
-          <a href="../auth/logout.php" class="dd-item dd-logout">
-              <span class="dd-item-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
-                      <polyline points="16 17 21 12 16 7"/>
-                      <line x1="21" y1="12" x2="9" y2="12"/>
-                  </svg>
-              </span>
-              Log out
-          </a>
-      </div>
-      </div>
+      <div class="admin-account-group">
+    <span class="admin-greeting">Hello, <strong><?= htmlspecialchars($adminName) ?></strong></span>
+        <div class="account-wrap" id="accountWrap">
+            <button class="account-btn" id="accountBtn" aria-label="Account menu">
+                <?php if ($avatarUrl): ?>
+                    <img src="<?= $avatarUrl ?>" alt="Avatar" class="account-avatar-img">
+                <?php else: ?>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="8" r="4"/>
+                        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                    </svg>
+                <?php endif; ?>
+            </button>
+            <div class="account-dropdown" id="accountDropdown">
+                <div class="dd-profile">
+                    <div class="dd-avatar">
+                        <?php if ($avatarUrl): ?>
+                            <img src="<?= $avatarUrl ?>" alt="<?= htmlspecialchars($adminName) ?>">
+                        <?php else: ?>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <circle cx="12" cy="8" r="4"/>
+                                <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                            </svg>
+                        <?php endif; ?>
+                    </div>
+                    <p class="dd-name"><?= htmlspecialchars($adminName) ?></p>
+                    <p class="dd-email"><?= htmlspecialchars($adminEmail) ?></p>
+                </div>
+                <div class="dd-divider"></div>
+                <a href="../admin/admin-profile.php" class="dd-item">
+                    <span class="dd-item-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+                        </svg>
+                    </span>
+                    Settings
+                </a>
+                <div class="dd-divider"></div>
+                <a href="../auth/logout.php" class="dd-item dd-logout">
+                    <span class="dd-item-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+                            <polyline points="16 17 21 12 16 7"/>
+                            <line x1="21" y1="12" x2="9" y2="12"/>
+                        </svg>
+                    </span>
+                    Log out
+                </a>
+            </div>
+        </div>
+    </div>
     </div>
 
     <!-- Stat cards -->
