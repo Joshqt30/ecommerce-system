@@ -8,6 +8,6 @@ $pass = "Joshpogi123";
 $conn = pg_connect("host=$host port=$port dbname=$dbname user=$user password=$pass");
 
 if (!$conn) {
-    die("Connection failed: " . pg_last_error());
-}
+    /** @noinspection PhpParamsInspection */
+    die("Connection failed: " . pg_last_error());}
 ?>

@@ -34,10 +34,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
         $error = "Please fill in all fields.";
     } else {
 
-        $query = "SELECT id, username, password, COALESCE(role, 'user') AS role 
-                  FROM users 
-                  WHERE username = $1 
-                  LIMIT 1";
+        $query = "SELECT id, username, email, password, COALESCE(role, 'user') AS role 
+          FROM users 
+          WHERE username = $1 
+          LIMIT 1";
 
         $result = pg_query_params($conn, $query, [$username]);
 
