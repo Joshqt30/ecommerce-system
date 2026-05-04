@@ -1,15 +1,12 @@
 <?php
 session_start();
 require_once "../config/db.php";
-/********** @var resource|\PgSql\Connection $conn **********/
+/** @var resource|\PgSql\Connection $conn */
 
 if (isset($_POST['reset'])) {
 
     $email = trim($_POST['email']);
 
-    /* =========================
-       CHECK EMAIL (POSTGRESQL)
-    ========================= */
     $query = "SELECT id FROM users WHERE email = $1";
     $result = pg_query_params($conn, $query, [$email]);
 
@@ -17,18 +14,18 @@ if (isset($_POST['reset'])) {
 
         $_SESSION['reset_email'] = $email;
 
-        /* =========================
-           OTP GENERATION
-        ========================= */
-        $_SESSION['reset_otp'] = rand(100000, 999999);
-        $_SESSION['reset_otp_time'] = time();
-        $_SESSION['reset_otp_sent'] = false;
+        $_SESSION['reset_otp']        = random_int(100000, 999999); // secure
+        $_SESSION['reset_otp_expiry'] = time() + 60;               // explicit expiry
+        $_SESSION['reset_otp_sent']   = false;
 
         header("Location: verify-reset.php");
         exit();
 
     } else {
-        echo "<script>alert('Email not found');</script>";
+        // Generic message to avoid email enumeration
+        $error = "If that email exists, we've sent a reset code.";
+        // Optionally log the real failure for debugging
+        error_log("Password reset attempt for unknown email: $email");
     }
 }
 ?>

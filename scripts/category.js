@@ -31,9 +31,20 @@ function addToCart(btn, productId) {
     });
 }
 
-function buyNow(id) {
-    // Go to viewitems.php first, not directly to checkout
-    window.location.href = '../user/viewitems.php?id=' + id;
+function buyNow(productId) {
+    fetch('../includes/add.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_id: productId })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = '../user/checkout.php';
+        } else {
+            toast(data.message || 'Error');
+        }
+    });
 }
 
 // ── Smart search ──────────────────────────────────────

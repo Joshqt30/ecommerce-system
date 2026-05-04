@@ -20,10 +20,15 @@ if (isset($_POST['update_password'])) {
        BASIC VALIDATION
     ========================= */
     if (strlen($newPass) < 6) {
-        echo "<script>alert('Password must be at least 6 characters');</script>";
+        $error = "Password must be at least 6 characters";
     } elseif ($newPass !== $confirmPass) {
-        echo "<script>alert('Passwords do not match');</script>";
+        $error = "Passwords do not match";
     } else {
+        // ... update password ...
+        unset($_SESSION['reset_email']);
+        header("Location: login.php?reset=success");
+        exit();
+    }
 
         $email = $_SESSION['reset_email'];
         $hashedPassword = password_hash($newPass, PASSWORD_DEFAULT);

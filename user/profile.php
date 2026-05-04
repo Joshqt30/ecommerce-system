@@ -7,8 +7,6 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 include '../config/db.php';
-/** @var resource|\PgSql\Connection $conn */
-
 include '../includes/header.php';
 include '../includes/cart-panel.php';
 
@@ -80,9 +78,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
     $row = pg_fetch_assoc($passResult);
 
     if (!$row || !password_verify($current, $row['password'])) {
-        $passError = "Current password is incorrect.";
+        $passError = "Current password is incorrect!";
     } elseif ($new !== $confirm) {
-        $passError = "New passwords do not match.";
+        $passError = "New passwords do not match!";
     } else {
 
         $hashed = password_hash($new, PASSWORD_DEFAULT);
@@ -93,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
         if ($passResult) {
             $passSuccess = "Password updated successfully!";
         } else {
-            $passError = "Failed to update password.";
+            $passError = "Failed to update password!";
         }
     }
 }
@@ -227,15 +225,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_account'])) {
     <div class="account-card <?= $tab === 'profile' ? 'active' : '' ?>">
 
         <?php if (isset($success)): ?>
-            <p style="color: green; margin-bottom:10px;">
-                <?= $success ?>
-            </p
+            <div class="success-message" style="color:green; margin-bottom:10px;"><?= htmlspecialchars($success) ?></div>
         <?php endif; ?>
-        
+
         <?php if (isset($error)): ?>
-            <p style="color: red; margin-bottom:10px;">
-                <?= $error ?>
-            </p>
+            <div class="error-message" style="color:red; margin-bottom:10px;"><?= htmlspecialchars($error) ?></div>
         <?php endif; ?>
 
         <form method="POST">
@@ -337,12 +331,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_account'])) {
         <p class="card-subtitle">Manage your password and preferences.</p>
 
     <!-- Change password -->
-    <?php if (isset($passSuccess)): ?>
-            <p style="color:green;"><?= $passSuccess ?></p>
+        <?php if (isset($passSuccess)): ?>
+            <div class="success-message" style="color:green; margin-bottom:10px;"><?= htmlspecialchars($passSuccess) ?></div>
         <?php endif; ?>
 
         <?php if (isset($passError)): ?>
-            <p style="color:red;"><?= $passError ?></p>
+            <div class="error-message" style="color:red; margin-bottom:10px;"><?= htmlspecialchars($passError) ?></div>
         <?php endif; ?>
     <div class="section-title">Change Password</div>
     <form method="POST">
@@ -451,5 +445,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_account'])) {
     const items = document.querySelectorAll('.dd-item:not(.dd-logout)');
     if (items[tabMap[tab]]) items[tabMap[tab]].classList.add('dd-active');
 </script>
+
+<script>
+window.addEventListener("DOMContentLoaded", () => {
+    const messages = document.querySelectorAll(".success-message, .error-message");
+
+    messages.forEach(msg => {
+        setTimeout(() => {
+            msg.style.transition = "opacity 0.3s ease";
+            msg.style.opacity = "0";
+            setTimeout(() => msg.remove(), 300);
+        }, 1500);
+    });
+});
+</script>
+
 </body>
 </html>

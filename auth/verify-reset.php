@@ -1,6 +1,5 @@
 <?php
 session_start();
-
 require_once "../vendor/autoload.php";
 
 use Dotenv\Dotenv;
@@ -22,6 +21,7 @@ if (!isset($_SESSION['reset_email'], $_SESSION['reset_otp'])) {
 }
 
 $email = $_SESSION['reset_email'];
+$error = null; // server‑side error message holder
 
 /* =========================
    OTP EXPIRATION (10 MIN)
@@ -31,13 +31,18 @@ if (!isset($_SESSION['reset_otp_time'])) {
 }
 
 if (time() - $_SESSION['reset_otp_time'] > 600) {
-    session_unset();
-    session_destroy();
+    // Targeted cleanup – remove only reset‑related keys
+    unset(
+        $_SESSION['reset_email'],
+        $_SESSION['reset_otp'],
+        $_SESSION['reset_otp_time'],
+        $_SESSION['reset_otp_sent']
+    );
 
-    echo "<script>
-        alert('OTP expired. Please request again.');
-        window.location.href='reset-password.php';
-    </script>";
+    $error = "OTP expired. Please request a new one.";
+    
+    // Fallback if header fails – show error on this page
+    header("Location: reset-password.php?expired=1");
     exit();
 }
 
@@ -50,28 +55,28 @@ if (empty($_SESSION['reset_otp_sent'])) {
 
     try {
         $mail->isSMTP();
-        $mail->Host = $_ENV['SMTP_HOST'];
-        $mail->SMTPAuth = true;
-
-        $mail->Username = $_ENV['SMTP_USER'];
-        $mail->Password = $_ENV['SMTP_PASS'];
-
+        $mail->Host       = $_ENV['SMTP_HOST'];
+        $mail->SMTPAuth   = true;
+        $mail->Username   = $_ENV['SMTP_USER'];
+        $mail->Password   = $_ENV['SMTP_PASS'];
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port = $_ENV['SMTP_PORT'];
+        $mail->Port       = $_ENV['SMTP_PORT'];
 
         $mail->setFrom($_ENV['SMTP_FROM'], $_ENV['SMTP_NAME']);
         $mail->addAddress($email);
 
         $mail->isHTML(true);
         $mail->Subject = "Reset Password Code";
-        $mail->Body = "<h2>Your OTP Code: <b>{$_SESSION['reset_otp']}</b></h2>";
+        $mail->Body    = "<h2>Your OTP Code: <b>{$_SESSION['reset_otp']}</b></h2>";
 
         $mail->send();
 
         $_SESSION['reset_otp_sent'] = true;
 
     } catch (Exception $e) {
-    error_log("OTP Email failed: " . $mail->ErrorInfo);
+        // Log the real error, show a user‑friendly fallback
+        error_log("OTP Email failed: " . $mail->ErrorInfo);
+        $error = "We couldn't send the email right now. Please try again later.";
     }
 }
 
@@ -89,25 +94,23 @@ if (isset($_POST['verify'])) {
         $_POST['otp6'] ?? ''
     ];
 
-    // check if any empty field
+    // Check if any field is empty
     if (in_array('', $inputs, true)) {
-        echo "<script>alert('Please complete all OTP fields');</script>";
-        exit();
-    }
-
-    $inputOtp = implode('', $inputs);
-
-    if ($inputOtp == $_SESSION['reset_otp']) {
-
-        header("Location: new-password.php");
-        exit();
-
+        $error = "Please complete all OTP fields.";
     } else {
-        echo "<script>alert('Invalid OTP');</script>";
+        $inputOtp = implode('', $inputs);
+
+        if ($inputOtp == $_SESSION['reset_otp']) {
+            // OTP is correct – proceed to new password page
+            // Do NOT destroy the session; new-password.php needs reset_email
+            header("Location: new-password.php");
+            exit();
+        } else {
+            $error = "Invalid OTP. Please try again.";
+        }
     }
 }
 ?>
-
 <!doctype html>
 <html lang="en">
 <head>
@@ -124,7 +127,7 @@ if (isset($_POST['verify'])) {
 
 <body>
 
-<!-- ── Header (same as dashboard but simpler) ── -->
+<!-- Header -->
 <header class="header">
   <div class="nav-bar">
     <a href="../index.php" class="logo-wrap">
@@ -150,8 +153,15 @@ if (isset($_POST['verify'])) {
 
     <p class="verify-text">
       Your verification code is sent via email to <br>
-      <strong><?php echo $email; ?></strong>
+      <strong><?php echo htmlspecialchars($email); ?></strong>
     </p>
+
+    <!-- Show server-side error (if any) -->
+    <?php if ($error): ?>
+      <div class="error-message" style="color: #d93025; margin-bottom: 15px; text-align: center;">
+        <?php echo htmlspecialchars($error); ?>
+      </div>
+    <?php endif; ?>
 
     <form method="POST">
 

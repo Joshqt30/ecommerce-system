@@ -21,6 +21,104 @@ try {
     $dbConnError = $e->getMessage();
 }
 
+
+/**
+ * Save variants from the form submission.
+ * Call after the product INSERT (pass $newId) or UPDATE (pass $productId).
+ */
+function saveVariants(PDO $pdo, int $productId, string $variantsJson, array $files): void
+{
+    $variants = json_decode($variantsJson, true);
+    if (!is_array($variants) || empty($variants)) return;
+
+    $uploadDir = '../imgs/products/';
+    if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
+
+    // Track which existing IDs are still present (to delete removed ones)
+    $keptIds = [];
+
+    foreach ($variants as $i => $v) {
+        $attrs    = $v['attributes']  ?? [];
+        $price    = $v['price']       ?: null;
+        $stock    = (int)($v['stock'] ?? 0);
+        $sku      = $v['sku']         ?: null;
+        $existId  = (int)($v['existing_id'] ?? 0);
+        $imageUrl = $v['existing_image_url'] ?: null;
+
+        // Handle variant image upload
+        // File inputs are named variant_image_N in the multipart form
+        $fileKey  = "variant_image_{$i}";
+        if (isset($files[$fileKey]) && $files[$fileKey]['error'] === UPLOAD_ERR_OK) {
+            $ext      = strtolower(pathinfo($files[$fileKey]['name'], PATHINFO_EXTENSION));
+            $filename = uniqid("var_{$productId}_", true) . '.' . $ext;
+            if (move_uploaded_file($files[$fileKey]['tmp_name'], $uploadDir . $filename)) {
+                $imageUrl = $filename;
+            }
+        }
+
+        if ($existId > 0) {
+            // UPDATE existing variant
+            $stmt = $pdo->prepare("
+                UPDATE product_variants
+                SET attributes    = :attrs,
+                    price         = :price,
+                    stock_quantity = :stock,
+                    sku           = :sku,
+                    image_url     = COALESCE(:image, image_url)
+                WHERE id = :id AND product_id = :pid
+            ");
+            $stmt->execute([
+                ':attrs' => json_encode($attrs),
+                ':price' => $price,
+                ':stock' => $stock,
+                ':sku'   => $sku,
+                ':image' => $imageUrl,
+                ':id'    => $existId,
+                ':pid'   => $productId,
+            ]);
+            $keptIds[] = $existId;
+        } else {
+            // INSERT new variant
+            $stmt = $pdo->prepare("
+                INSERT INTO product_variants
+                    (product_id, attributes, price, stock_quantity, sku, image_url, created_at)
+                VALUES
+                    (:pid, :attrs, :price, :stock, :sku, :image, NOW())
+                RETURNING id
+            ");
+            $stmt->execute([
+                ':pid'   => $productId,
+                ':attrs' => json_encode($attrs),
+                ':price' => $price,
+                ':stock' => $stock,
+                ':sku'   => $sku,
+                ':image' => $imageUrl,
+            ]);
+            $keptIds[] = (int)$stmt->fetchColumn();
+        }
+    }
+
+    // Delete variants that were removed by the admin
+    if (!empty($keptIds)) {
+        $placeholders = implode(',', array_fill(0, count($keptIds), '?'));
+        $del = $pdo->prepare(
+            "DELETE FROM product_variants WHERE product_id = ? AND id NOT IN ($placeholders)"
+        );
+        $del->execute(array_merge([$productId], $keptIds));
+    } else {
+        // All removed
+        $pdo->prepare("DELETE FROM product_variants WHERE product_id = ?")->execute([$productId]);
+    }
+
+    // Keep products.stock in sync with the sum of variant stock
+    $sync = $pdo->prepare("
+        UPDATE products
+        SET stock = (SELECT COALESCE(SUM(stock_quantity),0) FROM product_variants WHERE product_id = :pid)
+        WHERE id = :pid
+    ");
+    $sync->execute([':pid' => $productId]);
+}
+
 // ── Product ID & Fetch ──────────────────────────────
 $productId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if ($productId <= 0) {
@@ -89,18 +187,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo) {
 
     // Image upload
     $primaryImage = null;
+    $allImageFilenames = [];  
     if (!empty($_FILES['product_images']['name'][0])) {
         $uploadDir    = '../imgs/products/';
-        $allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
+        $allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'image/jfif'];
         if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
         foreach ($_FILES['product_images']['tmp_name'] as $i => $tmpName) {
             if ($_FILES['product_images']['error'][$i] !== UPLOAD_ERR_OK) continue;
             $mime = mime_content_type($tmpName);
-            if (!in_array($mime, $allowedMimes)) { $errors[] = 'Only JPG, PNG, WebP images allowed.'; continue; }
+            if (!in_array($mime, $allowedMimes)) { $errors[] = 'Only JPG, PNG, WebP, JPEG, JFIF images allowed.'; continue; }
             if ($_FILES['product_images']['size'][$i] > 5 * 1024 * 1024) { $errors[] = 'Each image must be under 5 MB.'; continue; }
             $ext      = strtolower(pathinfo($_FILES['product_images']['name'][$i], PATHINFO_EXTENSION));
             $filename = uniqid('prod_', true) . '.' . $ext;
             if (move_uploaded_file($tmpName, $uploadDir . $filename)) {
+                $allImageFilenames[] = $filename;         // NEW
                 if ($primaryImage === null) $primaryImage = $filename;
             }
         }
@@ -128,14 +228,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo) {
                 ':category'    => $category,
                 ':id'          => $productId,
             ]);
+
+        // Save newly uploaded product images
+        if (!empty($allImageFilenames)) {
+            $imgStmt = $pdo->prepare(
+                "INSERT INTO product_images (product_id, image_url, sort_order, created_at)
+                VALUES (:pid, :img, :sort, NOW())"
+            );
+            foreach ($allImageFilenames as $idx => $imgFile) {
+                // Use a high sort_order to place new images at the end.
+                // You can also query the max sort_order first for a more precise order.
+                $imgStmt->execute([
+                    ':pid'  => $productId,
+                    ':img'  => $imgFile,
+                    ':sort' => $idx + 1000   // high number to keep them at the end
+                ]);
+            }
+        }
+
+             // Save variants
+            if (isset($_POST['variants_json'])) {
+                saveVariants($pdo, $productId, $_POST['variants_json'], $_FILES);
+            }
+
+              // ⬇️ PASTE THE DELETION CODE RIGHT HERE ⬇️
+            // Delete specific images from product_images
+            if (!empty($_POST['delete_image_url'])) {
+                $stmt = $pdo->prepare("DELETE FROM product_images WHERE product_id = :pid AND image_url = :img");
+                foreach ($_POST['delete_image_url'] as $imgUrl) {
+
+                  // Delete the physical file from the server
+                    $filePath = '../imgs/products/' . $imgUrl;
+                    if (file_exists($filePath)) {
+                        unlink($filePath);
+                    }
+
+                    $stmt->execute([':pid' => $productId, ':img' => $imgUrl]);
+                }
+            }
+            
             $success = true;
         } catch (PDOException $e) {
             $errors[] = 'Update error: ' . $e->getMessage();
         }
+
+            // Handle deletion of the old main image
+            if (isset($_POST['delete_old_image']) && empty($primaryImage)) {
+                $oldImage = $product['image'] ?? null;
+                if ($oldImage && file_exists('../imgs/products/' . $oldImage)) {
+                    unlink('../imgs/products/' . $oldImage);
+                }
+                // Clear the product.image column
+                $pdo->prepare("UPDATE products SET image = NULL WHERE id = :id")
+                    ->execute([':id' => $productId]);
+                // Also remove from product_images if present
+                $pdo->prepare("DELETE FROM product_images WHERE product_id = :pid AND image_url = :img")
+                    ->execute([':pid' => $productId, ':img' => $oldImage]);
+            }        
     }
 
     if ($success) {
-        header("Location: admin-products.php?msg=" . urlencode("\"" . $name . "\" updated successfully."));
+        header("Location: ../admin/admin-products.php?msg=" . urlencode("\"" . $name . "\" updated successfully."));
         exit;
     }
 }
@@ -698,13 +851,31 @@ $current_file = basename($_SERVER['PHP_SELF']);
               <div class="drop-title">Click or drag images here</div>
               <div class="drop-hint">JPG, PNG, WebP · max 5 MB · first image = main product photo</div>
             </div>
+
+            <?php
+            // Fetch existing product images for editing
+            $existingImagesStmt = $pdo->prepare(
+                "SELECT image_url FROM product_images WHERE product_id = :pid ORDER BY sort_order ASC"
+            );
+            $existingImagesStmt->execute([':pid' => $productId]);
+            $existingImages = $existingImagesStmt->fetchAll(PDO::FETCH_COLUMN);
+            ?>
+
             <div class="image-previews" id="imagePreviews">
                 <?php if (!empty($product['image'])): ?>
-                <div class="preview-thumb" id="existingImage">
-                    <img src="<?= PRODUCT_IMGS_BASE . htmlspecialchars($product['image']) ?>" alt="Current image">
-                    <span class="remove-img" onclick="removeExistingImage()">✕</span>
-                </div>
+                    <div class="preview-thumb" id="existingImage">
+                        <img src="<?= PRODUCT_IMGS_BASE . htmlspecialchars($product['image']) ?>" alt="Current image">
+                        <span class="remove-img" onclick="removeExistingImage()">✕</span>
+                    </div>
                 <?php endif; ?>
+
+                <!-- Show images from product_images table -->
+                <?php foreach ($existingImages as $img): ?>
+                    <div class="preview-thumb" data-img="<?= htmlspecialchars($img) ?>">
+                        <img src="<?= PRODUCT_IMGS_BASE . htmlspecialchars($img) ?>" alt="Product image">
+                        <span class="remove-img" onclick="removeDbImage('<?= htmlspecialchars($img) ?>', this)">✕</span>
+                    </div>
+                <?php endforeach; ?>
             </div>
           </div>
 
@@ -739,18 +910,7 @@ $current_file = basename($_SERVER['PHP_SELF']);
           </div>
 
           <!-- Available Colors -->
-          <div class="card">
-            <div class="card-title">Available Colors</div>
-            <p class="section-hint" style="margin-bottom:14px">Click + to add. Click a swatch to edit it.</p>
-            <div class="color-list" id="colorList"></div>
-            <button type="button" class="add-color-btn" onclick="openColorModal(null)" title="Add color">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"/>
-                <line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-            </button>
-            <input type="hidden" name="colors" id="colorsHidden"/>
-          </div>
+         <?php include '../admin/variant-manager.php'; ?>
 
         </div><!-- /right col -->
       </div><!-- /form-grid -->
@@ -799,7 +959,7 @@ function previewImages(input) { handleFiles(Array.from(input.files)); }
 function handleFiles(files) {
   files.forEach(f => {
     if (selectedFiles.length >= 5) return;
-    if (!f.type.match(/image\/(jpeg|png|webp)/)) return;
+    if (!f.type.match(/image\/(jpeg|png|webp|jfif|jpg)/)) return;
     selectedFiles.push(f);
   });
   renderPreviews();
@@ -807,12 +967,26 @@ function handleFiles(files) {
 
 function renderPreviews() {
   const wrap = document.getElementById('imagePreviews');
-  wrap.innerHTML = '';
+  
+  // Remove only the thumbnails that were added by JS (new files),
+  // not the PHP-rendered ones (which have a child 'img' and are direct children).
+  // But a simpler approach: instead of wiping all, we'll just append new ones and
+  // leave existing ones untouched, but we must avoid duplicate file previews.
+  // The cleanest solution: clear only the JS-generated previews by giving them a class.
+  // Since we can't easily distinguish, we'll store the currently shown DB images
+  // and restore them after clearing, or better: just don't clear at all, but 
+  // remove previous JS previews first.
+
+  // Remove old JS-created previews (those without a data-img attribute)
+  wrap.querySelectorAll('.preview-thumb:not([data-img])').forEach(el => el.remove());
+
+  // Now add the new files
   selectedFiles.forEach((file, i) => {
     const reader = new FileReader();
     reader.onload = e => {
       const div = document.createElement('div');
       div.className = 'preview-thumb';
+      // No data-img attribute, so it will be removed on next render if needed
       div.innerHTML = `
         <img src="${e.target.result}" alt="preview"/>
         <span class="remove-img" onclick="removeImage(${i})">✕</span>
@@ -940,6 +1114,8 @@ document.getElementById('colorModalOverlay').addEventListener('click', function(
 
 // ── Form submit ────────────────────────────────────────
 document.getElementById('productForm').addEventListener('submit', function(e) {
+  syncVariantsJson();
+  
   // Sync hidden fields first
   document.getElementById('tagsHidden').value   = tags.join(',');
   document.getElementById('colorsHidden').value  = JSON.stringify(colors);
@@ -970,6 +1146,19 @@ function removeExistingImage() {
     delInput.value = '1';
     document.getElementById('productForm').appendChild(delInput);
   }
+}
+
+// ⬇️ PASTE IT HERE ⬇️
+function removeDbImage(filename, btn) {
+    // Remove from DOM
+    btn.closest('.preview-thumb').remove();
+
+    // Add a hidden input to tell PHP to delete this image
+    let input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'delete_image_url[]';
+    input.value = filename;
+    document.getElementById('productForm').appendChild(input);
 }
 </script>
 </body>

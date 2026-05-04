@@ -85,8 +85,10 @@ foreach ($cartData as $item) {
 pg_query_params($conn, "DELETE FROM cart WHERE user_id = $1", [$userId]);
 
 // 5. Commit
-pg_query($conn, "COMMIT");
-
+if (!pg_query($conn, "COMMIT")) {
+    error_log("Order commit failed for user $userId");
+    die("Something went wrong. Please try again later.");
+}
 // redirect
 header("Location: order-success.php?id=" . $orderId);
 exit;

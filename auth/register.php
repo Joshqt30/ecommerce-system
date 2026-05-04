@@ -1,39 +1,41 @@
 <?php
 session_start();
-include '../config/db.php';
+require_once '../config/db.php';
 /** @var resource|\PgSql\Connection $conn */
 
-if (isset($_POST['register'])) {
 
+// Optional: clear stale session data on a fresh visit (no back parameter)
+if (!isset($_GET['back'])) {
+    unset($_SESSION['reg_username'], $_SESSION['reg_email'], $_SESSION['reg_password']);
+}
+
+$username = $_SESSION['reg_username'] ?? '';
+$email   = $_SESSION['reg_email'] ?? '';
+$error   = null;
+
+if (isset($_POST['register'])) {
     $username = trim($_POST['username']);
-    $email = trim($_POST['email']);
+    $email    = trim($_POST['email']);
     $password = $_POST['password'];
-    $confirm = $_POST['confirm_password'];
+    $confirm  = $_POST['confirm_password'];
 
     if ($password !== $confirm) {
         $error = "Passwords do not match!";
     } else {
-
-        // check duplicates
         $check = pg_query_params($conn,
             "SELECT id FROM users WHERE username = $1 OR email = $2",
             [$username, $email]
         );
-
         if (pg_num_rows($check) > 0) {
             $error = "Username or Email already exists!";
         } else {
-
-            // store TEMP data only
             $_SESSION['reg_username'] = $username;
-            $_SESSION['reg_email'] = $email;
+            $_SESSION['reg_email']   = $email;
             $_SESSION['reg_password'] = $password;
 
-            // generate OTP if not yet created
-            if (!isset($_SESSION['otp'], $_SESSION['otp_time'])) {
-            $_SESSION['otp'] = random_int(100000, 999999);
+            // Generate OTP only when moving to confirmation page
+            $_SESSION['otp']      = random_int(100000, 999999);
             $_SESSION['otp_time'] = time();
-        }
 
             header("Location: confirm-register.php");
             exit();

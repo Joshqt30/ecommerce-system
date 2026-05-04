@@ -4,31 +4,20 @@ session_start();
 /* =========================
    SECURITY GUARD
 ========================= */
+
+// 1. Security guard (from Code 2)
 if (!isset($_SESSION['reg_username'], $_SESSION['reg_email'], $_SESSION['reg_password'])) {
     header("Location: register.php");
     exit();
 }
 
-/* =========================
-   SAFE DATA LOAD
-========================= */
 $username = $_SESSION['reg_username'];
 $email = $_SESSION['reg_email'];
 
-/* =========================
-   OTP GENERATION (ALWAYS READY)
-========================= */
-if (!isset($_SESSION['otp'], $_SESSION['otp_time'])) {
-    $_SESSION['otp'] = random_int(100000, 999999);
-    $_SESSION['otp_time'] = time();
-}
-
-/* =========================
-   NAVIGATE TO VERIFICATION
-========================= */
+// 2. OTP generation on explicit confirmation (like Code 1, but with random_int)
 if (isset($_POST['confirm_register'])) {
-
-    // reset email send flag so verification.php can send OTP
+    $_SESSION['otp'] = random_int(100000, 999999);
+    $_SESSION['otp_expiry'] = time() + 60;
     unset($_SESSION['otp_sent']);
 
     header("Location: verification.php");

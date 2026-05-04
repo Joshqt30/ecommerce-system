@@ -22,6 +22,103 @@ try {
     $dbConnError = $e->getMessage();
 }
 
+
+/**
+ * Save variants from the form submission.
+ * Call after the product INSERT (pass $newId) or UPDATE (pass $productId).
+ */
+function saveVariants(PDO $pdo, int $productId, string $variantsJson, array $files): void
+{
+    $variants = json_decode($variantsJson, true);
+    if (!is_array($variants) || empty($variants)) return;
+
+    $uploadDir = '../imgs/products/';
+    if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
+
+    // Track which existing IDs are still present (to delete removed ones)
+    $keptIds = [];
+
+    foreach ($variants as $i => $v) {
+        $attrs    = $v['attributes']  ?? [];
+        $price    = $v['price']       ?: null;
+        $stock    = (int)($v['stock'] ?? 0);
+        $sku      = $v['sku']         ?: null;
+        $existId  = (int)($v['existing_id'] ?? 0);
+        $imageUrl = $v['existing_image_url'] ?: null;
+
+        // Handle variant image upload
+        // File inputs are named variant_image_N in the multipart form
+        $fileKey  = "variant_image_{$i}";
+        if (isset($files[$fileKey]) && $files[$fileKey]['error'] === UPLOAD_ERR_OK) {
+            $ext      = strtolower(pathinfo($files[$fileKey]['name'], PATHINFO_EXTENSION));
+            $filename = uniqid("var_{$productId}_", true) . '.' . $ext;
+            if (move_uploaded_file($files[$fileKey]['tmp_name'], $uploadDir . $filename)) {
+                $imageUrl = $filename;
+            }
+        }
+
+        if ($existId > 0) {
+            // UPDATE existing variant
+            $stmt = $pdo->prepare("
+                UPDATE product_variants
+                SET attributes    = :attrs,
+                    price         = :price,
+                    stock_quantity = :stock,
+                    sku           = :sku,
+                    image_url     = COALESCE(:image, image_url)
+                WHERE id = :id AND product_id = :pid
+            ");
+            $stmt->execute([
+                ':attrs' => json_encode($attrs),
+                ':price' => $price,
+                ':stock' => $stock,
+                ':sku'   => $sku,
+                ':image' => $imageUrl,
+                ':id'    => $existId,
+                ':pid'   => $productId,
+            ]);
+            $keptIds[] = $existId;
+        } else {
+            // INSERT new variant
+            $stmt = $pdo->prepare("
+                INSERT INTO product_variants
+                    (product_id, attributes, price, stock_quantity, sku, image_url, created_at)
+                VALUES
+                    (:pid, :attrs, :price, :stock, :sku, :image, NOW())
+                RETURNING id
+            ");
+            $stmt->execute([
+                ':pid'   => $productId,
+                ':attrs' => json_encode($attrs),
+                ':price' => $price,
+                ':stock' => $stock,
+                ':sku'   => $sku,
+                ':image' => $imageUrl,
+            ]);
+            $keptIds[] = (int)$stmt->fetchColumn();
+        }
+    }
+
+    // Delete variants that were removed by the admin
+    if (!empty($keptIds)) {
+        $placeholders = implode(',', array_fill(0, count($keptIds), '?'));
+        $del = $pdo->prepare(
+            "DELETE FROM product_variants WHERE product_id = ? AND id NOT IN ($placeholders)"
+        );
+        $del->execute(array_merge([$productId], $keptIds));
+    } else {
+        // All removed
+        $pdo->prepare("DELETE FROM product_variants WHERE product_id = ?")->execute([$productId]);
+    }
+
+    // Keep products.stock in sync with the sum of variant stock
+    $sync = $pdo->prepare("
+        UPDATE products
+        SET stock = (SELECT COALESCE(SUM(stock_quantity),0) FROM product_variants WHERE product_id = :pid)
+        WHERE id = :pid
+    ");
+    $sync->execute([':pid' => $productId]);
+}
 // ═══════════════════════════════════════════════════════
 //  HANDLE POST SUBMISSION
 // ═══════════════════════════════════════════════════════
@@ -56,20 +153,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo) {
     // ── Image upload ──────────────────────────────────
     // products.image stores a single filename (your schema)
     $primaryImage = null;
+    $allImageFilenames = []; 
     if (!empty($_FILES['product_images']['name'][0])) {
         $uploadDir    = '../imgs/products/';
-        $allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
+        $allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'image/jfif'];
         if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
 
+        $allImageFilenames = [];                          // NEW: collect all filenames
         foreach ($_FILES['product_images']['tmp_name'] as $i => $tmpName) {
             if ($_FILES['product_images']['error'][$i] !== UPLOAD_ERR_OK) continue;
             $mime = mime_content_type($tmpName);
-            if (!in_array($mime, $allowedMimes)) { $errors[] = 'Only JPG, PNG, WebP images allowed.'; continue; }
+            if (!in_array($mime, $allowedMimes)) { $errors[] = 'Only JPG, PNG, WebP, JPEG, JFIF images allowed.'; continue; }
             if ($_FILES['product_images']['size'][$i] > 5 * 1024 * 1024) { $errors[] = 'Each image must be under 5 MB.'; continue; }
             $ext      = strtolower(pathinfo($_FILES['product_images']['name'][$i], PATHINFO_EXTENSION));
             $filename = uniqid('prod_', true) . '.' . $ext;
             if (move_uploaded_file($tmpName, $uploadDir . $filename)) {
-                if ($primaryImage === null) $primaryImage = $filename; // first image = main
+                $allImageFilenames[] = $filename;         // NEW
+                if ($primaryImage === null) $primaryImage = $filename;
             }
         }
     }
@@ -104,7 +204,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo) {
                 ':category'    => $category,
             ]);
             $newId   = $stmt->fetchColumn();
+
+                // Insert all images into product_images
+             // Save multiple product images into product_images table
+            if (!empty($allImageFilenames)) {
+                $imgStmt = $pdo->prepare(
+                    "INSERT INTO product_images (product_id, image_url, sort_order, created_at)
+                    VALUES (:pid, :img, :sort, NOW())"
+                );
+                foreach ($allImageFilenames as $idx => $imgFile) {
+                    $imgStmt->execute([
+                        ':pid'  => (int)$newId,
+                        ':img'  => $imgFile,
+                        ':sort' => $idx   // first image has sort_order 0, second 1, etc.
+                    ]);
+                }
+            }
+            // Save variants
+            if (!empty($_POST['variants_json'])) {
+                saveVariants($pdo, (int) $newId, $_POST['variants_json'], $_FILES);
+            }
+
             $success = true;
+
+            
 
         } catch (PDOException $e) {
             $errors[] = 'Database error: ' . $e->getMessage();
@@ -114,7 +237,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo) {
 
 // PRG — redirect on success to prevent double-submit
 if ($success) {
-    header("Location: admin-products.php?msg=" . urlencode("\"" . $name . "\" published successfully."));
+    header("Location: ../admin/admin-products.php?msg=" . urlencode("\"" . $name . "\" published successfully."));
     exit;
 }
 
@@ -709,18 +832,7 @@ $current_file = basename($_SERVER['PHP_SELF']);
           </div>
 
           <!-- Available Colors -->
-          <div class="card">
-            <div class="card-title">Available Colors</div>
-            <p class="section-hint" style="margin-bottom:14px">Click + to add. Click a swatch to edit it.</p>
-            <div class="color-list" id="colorList"></div>
-            <button type="button" class="add-color-btn" onclick="openColorModal(null)" title="Add color">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"/>
-                <line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-            </button>
-            <input type="hidden" name="colors" id="colorsHidden"/>
-          </div>
+          <?php $productId = 0; include '../admin/variant-manager.php'; ?>
 
         </div><!-- /right col -->
       </div><!-- /form-grid -->
@@ -910,6 +1022,8 @@ document.getElementById('colorModalOverlay').addEventListener('click', function(
 
 // ── Form submit ────────────────────────────────────────
 document.getElementById('productForm').addEventListener('submit', function(e) {
+  syncVariantsJson();
+  
   // Sync hidden fields first
   document.getElementById('tagsHidden').value   = tags.join(',');
   document.getElementById('colorsHidden').value  = JSON.stringify(colors);
