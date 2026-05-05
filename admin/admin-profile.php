@@ -564,27 +564,31 @@ $current_file = basename($_SERVER['PHP_SELF']);
         <!-- Hidden avatar input linked to the hero zone -->
         <input type="file" name="avatar" id="avatarInputForm" accept="image/*" style="display:none"/>
 
-        <div class="form-grid">
-          <div class="field">
-            <label class="field-label">Username</label>
-            <input class="field-input" type="text" name="username"
-                   value="<?= htmlspecialchars($adminName) ?>" required/>
-          </div>
-          <div class="field">
-            <label class="field-label">Email Address</label>
-            <input class="field-input" type="email" name="email"
-                   value="<?= htmlspecialchars($adminEmail) ?>" required/>
-          </div>
+     <div class="form-grid">
+      <div class="field">
+        <label class="field-label">Username</label>
+        <input class="field-input" type="text" name="username"
+              value="<?= htmlspecialchars($adminName) ?>" required/>
+      </div>
+      <div class="field">
+        <label class="field-label">Email Address</label>
+        <!-- View‑only – cannot be changed -->
+        <div class="field-input" style="display:flex;align-items:center;background:#fafafa;color:var(--muted);border:1.5px solid var(--border);border-radius:10px;padding:11px 14px;">
+          <?= htmlspecialchars($adminEmail) ?>
         </div>
+        <span style="font-size:10px;color:var(--muted);margin-top:4px;">Cannot be changed (contact super‑admin)</span>
+      </div>
+    </div>
 
-        <div class="form-grid single">
-          <div class="field">
-            <label class="field-label">Phone Number</label>
-            <input class="field-input" type="tel" name="phone"
-                   value="<?= htmlspecialchars($adminPhone) ?>"
-                   placeholder="+63 912 345 6789"/>
-          </div>
+    <div class="form-grid single">
+      <div class="field">
+        <label class="field-label">Phone Number</label>
+        <div class="field-input" style="display:flex;align-items:center;background:#fafafa;color:var(--muted);border:1.5px solid var(--border);border-radius:10px;padding:11px 14px;">
+          <?= htmlspecialchars($adminPhone ?: '—') ?>
         </div>
+        <span style="font-size:10px;color:var(--muted);margin-top:4px;">Cannot be changed (contact super‑admin)</span>
+      </div>
+    </div>
 
         <button class="btn-save" type="submit">Save Changes</button>
       </form>
