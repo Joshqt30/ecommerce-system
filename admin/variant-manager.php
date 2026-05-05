@@ -19,15 +19,11 @@ if (!empty($productId) && $pdo) {
 <div class="card" id="variantCard">
   <div class="card-title">
     Product Variants
-    <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:8px">
-      Define options like Color + Storage. Each combination = one variant row.
-    </span>
-  </div>
+                                                                                  </div>
 
   <!-- Step 1: Define attribute types -->
   <div class="form-group">
     <label class="form-label">Attribute Types</label>
-    <p class="section-hint">Name the options this product has. e.g. "Color", "Storage", "Size"</p>
     <div id="attrTypeList" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"></div>
     <div style="display:flex;gap:8px;align-items:center">
       <input class="form-input" type="text" id="newAttrTypeInput"
@@ -52,7 +48,6 @@ if (!empty($productId) && $pdo) {
   <!-- Step 3: Variant table -->
   <div id="variantTableWrap" style="display:none">
     <label class="form-label">Variant Details</label>
-    <p class="section-hint">Set price and stock for each combination. Leave price blank to inherit the base price.</p>
     <div style="overflow-x:auto">
       <table id="variantTable" style="width:100%;border-collapse:collapse;font-size:13px">
         <thead>

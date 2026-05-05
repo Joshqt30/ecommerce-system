@@ -365,14 +365,6 @@ $adminName = $_SESSION['username'] ?? 'Admin';
     .back-btn svg { width: 16px; height: 16px; }
     .page-title { font-size: 22px; font-weight: 700; letter-spacing: -.4px; }
 
-    .btn-admin {
-      display: flex; align-items: center; gap: 9px; padding: 9px 18px;
-      background: var(--white); border: 1.5px solid var(--border); border-radius: 12px;
-      font-family: var(--font); font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s;
-    }
-    .btn-admin:hover { background: #f5f5f5; }
-    .btn-admin svg { width: 17px; height: 17px; }
-
     /* ── Form grid ──────────────────────────────────── */
     .form-grid { display: grid; grid-template-columns: 1fr 360px; gap: 20px; align-items: start; }
 
@@ -641,10 +633,6 @@ $current_file = basename($_SERVER['PHP_SELF']);
         </a>
         <h1 class="page-title">Add New Product</h1>
       </div>
-      <button class="btn-admin" type="button">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-        <?= htmlspecialchars($adminName) ?>
-      </button>
     </div>
 
     <?php if (isset($dbConnError)): ?>

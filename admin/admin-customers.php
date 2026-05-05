@@ -1,5 +1,11 @@
 <?php
 session_start();
+
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Cache-Control: post-check=0, pre-check=0", false);
+header("Pragma: no-cache");
+
+
 include '../config/db.php';
 /** @var resource|\PgSql\Connection $conn */
 
@@ -349,6 +355,59 @@ $avatarUrl = !empty($avatarFile) ? '/ecommerce-system/imgs/avatars/' . htmlspeci
     border-radius: 50%;
     object-fit: cover;
 }
+
+/* ── Logout Modal ─────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+  z-index: 1000; display: none; align-items: center; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+
+.modal-dialog {
+  background: #fff; border-radius: 16px; padding: 28px 32px;
+  width: 340px; max-width: 90%; text-align: center;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.15);
+  animation: modalFade 0.2s ease-out;
+}
+
+@keyframes modalFade {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.modal-icon {
+  width: 48px; height: 48px; margin: 0 auto 14px;
+  background: #fef2f2; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-icon svg { width: 22px; height: 22px; color: #ef4444; }
+
+.modal-title {
+  font-size: 17px; font-weight: 700; color: var(--text);
+  margin-bottom: 6px;
+}
+.modal-desc {
+  font-size: 13px; color: var(--muted); margin-bottom: 22px;
+  line-height: 1.5;
+}
+
+.modal-actions {
+  display: flex; gap: 10px;
+}
+.modal-btn {
+  flex: 1; padding: 11px 0; border-radius: 10px;
+  font-family: var(--font); font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: background 0.15s, transform 0.1s;
+}
+.modal-btn.cancel {
+  background: #f5f5f5; border: 1.5px solid var(--border);
+  color: var(--text);
+}
+.modal-btn.cancel:hover { background: #e5e5e5; }
+.modal-btn.confirm {
+  background: #ef4444; border: none; color: #fff;
+}
+.modal-btn.confirm:hover { background: #dc2626; }
   </style>
 </head>
 <body>
@@ -422,8 +481,7 @@ $avatarUrl = !empty($avatarFile) ? '/ecommerce-system/imgs/avatars/' . htmlspeci
                     Settings
                 </a>
                 <div class="dd-divider"></div>
-                <a href="../auth/logout.php" class="dd-item dd-logout">
-                    <span class="dd-item-icon">
+                <a href="#" class="dd-item dd-logout" onclick="openLogoutModal(event)">                    <span class="dd-item-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
                             <polyline points="16 17 21 12 16 7"/>
@@ -600,6 +658,26 @@ $avatarUrl = !empty($avatarFile) ? '/ecommerce-system/imgs/avatars/' . htmlspeci
   <span id="toastMsg">Done</span>
 </div>
 
+
+    <!-- Logout confirmation modal -->
+    <div class="modal-overlay" id="logoutModal">
+      <div class="modal-dialog">
+        <div class="modal-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+        </div>
+        <h3 class="modal-title">Ready to leave?</h3>
+        <p class="modal-desc">You will be logged out of the admin panel.<br>Make sure you've saved all changes.</p>
+        <div class="modal-actions">
+          <button class="modal-btn cancel" onclick="closeLogoutModal()">Cancel</button>
+          <button class="modal-btn confirm" id="confirmLogoutBtn">Yes, Logout</button>
+        </div>
+      </div>
+    </div>
+
 <script>
 let activeCustId = null;
 let activeRowEl = null;
@@ -702,6 +780,37 @@ function showToast(msg, warn = false) {
         }
     });
 })();
+
+// ── Logout modal ──────────────────────────────────────
+function openLogoutModal(e) {
+  e.preventDefault();
+  // Close the account dropdown first
+  const dropdown = document.getElementById('accountDropdown');
+  if (dropdown) dropdown.classList.remove('open');
+  document.getElementById('accountBtn')?.classList.remove('active');
+  // Show the modal
+  document.getElementById('logoutModal').classList.add('open');
+}
+
+function closeLogoutModal() {
+  document.getElementById('logoutModal').classList.remove('open');
+}
+
+// Confirm logout
+document.getElementById('confirmLogoutBtn')?.addEventListener('click', () => {
+  window.location.href = '../auth/logout.php';
+});
+
+// Close modal on overlay click or Escape
+document.getElementById('logoutModal')?.addEventListener('click', function(e) {
+  if (e.target === this) closeLogoutModal();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('logoutModal').classList.contains('open')) {
+    closeLogoutModal();
+  }
+});
+
 </script>
 </body>
 </html>
