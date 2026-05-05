@@ -534,8 +534,6 @@ include '../includes/cart-panel.php';
       <button class="tab-btn <?= $activeTab === 'reviews'     ? 'active' : '' ?>" data-tab="reviews">
         Reviews <?= $totalReviews > 0 ? "({$totalReviews})" : '' ?>
       </button>
-      <button class="tab-btn <?= $activeTab === 'company'     ? 'active' : '' ?>" data-tab="company">Company</button>
-      <button class="tab-btn <?= $activeTab === 'usage'       ? 'active' : '' ?>" data-tab="usage">Usage Guide</button>
     </div>
 
     <!-- Description -->
@@ -810,25 +808,33 @@ function syncQty() {
 }
 
 // ── Add to Cart ────────────────────────────────────────
-document.getElementById('addToCart').addEventListener('click', () => {
+document.getElementById('addToCart').addEventListener('click', async () => {
   if (currentMaxStock === 0) return;
   const price = activeVariant ? parseFloat(activeVariant.price) : BASE_PRICE;
-  if (typeof CartPanel !== 'undefined') {
-    CartPanel.addItem({
-      id:    activeVariant ? `${PRODUCT_ID}_${activeVariant.id}` : PRODUCT_ID,
-      name:  PRODUCT_NAME + (activeVariant ? ' — ' + Object.values(selectedAttrs).join(' / ') : ''),
-      price: price,
-      image: mainImg.src,
+  try {
+    const res = await fetch('../includes/add.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ product_id: PRODUCT_ID, quantity: qty })
     });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`${qty} × ${PRODUCT_NAME} added to cart!`);
+      // Refresh the cart panel if it's visible
+      if (typeof CartPanel !== 'undefined') CartPanel.render();
+    } else {
+      showToast(data.message || 'Failed to add to cart');
+    }
+  } catch (err) {
+    console.error(err);
+    showToast('Something went wrong');
   }
-  showToast(`${qty} × ${PRODUCT_NAME} added to cart!`);
 });
 
 // ── Buy Now ────────────────────────────────────────────
 document.getElementById('buyNow').addEventListener('click', () => {
   if (currentMaxStock === 0) return;
-  const id = activeVariant ? `${PRODUCT_ID}` : PRODUCT_ID;
-  window.location.href = `../user/checkout.php?product_id=${id}&qty=${qty}`;
+  window.location.href = `../user/checkout.php?direct_buy=1&product_id=${PRODUCT_ID}&qty=${qty}`;
 });
 
 // ── Tabs ───────────────────────────────────────────────

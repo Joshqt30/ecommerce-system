@@ -182,15 +182,45 @@ define('PRODUCT_IMGS_BASE', '/ecommerce-system/imgs/products/');
 
   // Fetch cart from server
   async function loadCartFromServer() {
-    try {
-      const response = await fetch('../includes/get-cart.php');
-      const data = await response.json();
-      cartItems = data; // array of { variantId, productId, name, price, quantity, image }
-      renderCart();
-    } catch (err) {
-      console.error('Failed to load cart:', err);
-      document.getElementById('cartItemsContainer').innerHTML = '<div class="text-center py-8 text-red-500">Error loading cart</div>';
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('direct_buy') === '1') {
+      const productId = urlParams.get('product_id');
+      const qty = parseInt(urlParams.get('qty')) || 1;
+      if (!productId) {
+        document.getElementById('cartItemsContainer').innerHTML = '<div class="text-center py-8 text-red-500">Missing product</div>';
+        return;
+      }
+      // Fetch product details from server
+      try {
+        const res = await fetch(`../includes/get-product.php?id=${productId}`);
+        if (!res.ok) throw new Error('Product not found');
+        const product = await res.json();
+        cartItems = [{
+          variantId: null,
+          productId: product.id,
+          name: product.name,
+          price: product.price,
+          quantity: qty,
+          image: product.image || ''
+        }];
+      } catch (err) {
+        console.error(err);
+        document.getElementById('cartItemsContainer').innerHTML = '<div class="text-center py-8 text-red-500">Error loading product</div>';
+        return;
+      }
+    } else {
+      // Normal cart loading from get-cart.php
+      try {
+        const response = await fetch('../includes/get-cart.php');
+        const data = await response.json();
+        cartItems = data;
+      } catch (err) {
+        console.error('Failed to load cart:', err);
+        document.getElementById('cartItemsContainer').innerHTML = '<div class="text-center py-8 text-red-500">Error loading cart</div>';
+        return;
+      }
     }
+    renderCart();
   }
 
   function renderCart() {

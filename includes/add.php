@@ -33,12 +33,14 @@ if (!$checkProd || pg_num_rows($checkProd) == 0) {
 }
 
 // Check existing cart item
+$quantity = isset($data['quantity']) ? max(1, (int)$data['quantity']) : 1;
+
 $checkCart = pg_query_params($conn, "SELECT id FROM cart WHERE user_id = $1 AND product_id = $2", [$user_id, $product_id]);
 if (pg_num_rows($checkCart) > 0) {
     $row = pg_fetch_assoc($checkCart);
-    pg_query_params($conn, "UPDATE cart SET quantity = quantity + 1 WHERE id = $1", [$row['id']]);
+    pg_query_params($conn, "UPDATE cart SET quantity = quantity + $1 WHERE id = $2", [$quantity, $row['id']]);
 } else {
-    pg_query_params($conn, "INSERT INTO cart (user_id, product_id, quantity) VALUES ($1, $2, 1)", [$user_id, $product_id]);
+    pg_query_params($conn, "INSERT INTO cart (user_id, product_id, quantity) VALUES ($1, $2, $3)", [$user_id, $product_id, $quantity]);
 }
 
 echo json_encode(['success' => true, 'message' => 'Added to cart']);
