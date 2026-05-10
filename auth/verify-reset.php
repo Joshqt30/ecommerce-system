@@ -200,5 +200,18 @@ inputs.forEach((input, index) => {
 });
 </script>
 
+<script>
+window.addEventListener("DOMContentLoaded", () => {
+    const messages = document.querySelectorAll(".error-message");
+    messages.forEach(msg => {
+        setTimeout(() => {
+            msg.style.transition = "opacity 0.3s ease";
+            msg.style.opacity = "0";
+            setTimeout(() => msg.remove(), 300);
+        }, 2000);
+    });
+});
+</script>
+
 </body>
 </html>
