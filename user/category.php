@@ -150,10 +150,6 @@ if ($category !== 'All' && $category !== 'Others' && empty($search)) {
     $mRes = pg_query($conn, "SELECT CEIL(MAX(price)) FROM products");
 }
 $sliderMax = ($mRes ? (int)pg_fetch_result($mRes, 0, 0) : 0) ?: 50000;
-
-// ── Include header and cart panel ─────────────────────
-include '../includes/header.php';
-include '../includes/cart-panel.php'; 
 ?>
 <!doctype html>
 <html lang="en">
@@ -171,13 +167,10 @@ include '../includes/cart-panel.php';
         /* Additional overrides to reduce card size and clean up */
         .category-page { max-width: 1100px; }
         .product-grid { gap: 16px; }
-        .card-img-wrap { height: 160px; }
-        .card-body { padding: 12px 14px 14px; gap: 4px; }
         .card-name { font-size: 13px; }
         .card-desc { font-size: 11px; line-height: 1.4; }
         .card-price { font-size: 16px; }
         .btn-cart, .btn-buy { padding: 6px 12px; font-size: 11px; white-space: nowrap; }
-        .card-footer { margin-top: 6px; }
         .card-stars .stars { font-size: 11px; }
         .suggest-name { flex: 1; font-size: 13px; color: #14181F; }
         .suggest-cat  { font-size: 11px; color: #9ca3af; white-space: nowrap; }
@@ -197,6 +190,10 @@ include '../includes/cart-panel.php';
     </style>
 </head>
 <body>
+
+<?php include '../includes/header.php'; ?>
+<?php include '../includes/cart-panel.php'; ?>
+
 
 <!-- Search bar -->
 <div class="search-bar">

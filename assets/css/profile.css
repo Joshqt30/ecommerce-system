@@ -109,6 +109,14 @@ body {
 .field-input:focus { border-color: #14181F; }
 .field-input::placeholder { color: #c0c4cc; }
 
+.field-input[readonly]:not(#never) {
+    background-color: #f9fafb;
+    color: #6b7280;
+    cursor: default;
+}
+.save-row { display: none; }
+.editing .save-row { display: block; }
+
 .btn-save {
     margin-top: 6px;
     padding: 11px 28px;
@@ -125,6 +133,43 @@ body {
 
 .btn-save:hover { background: #2d3340; }
 .btn-save:active { transform: scale(0.97); }
+
+
+/* Icon-only edit button */
+.btn-edit-icon {
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 6px;
+    cursor: pointer;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .15s, color .15s;
+}
+.btn-edit-icon:hover {
+    background: #f3f4f6;
+    color: #111827;
+}
+.editing .btn-edit-icon {
+    display: none;   /* hide pencil when editing */
+}
+
+.btn-cancel {
+    padding: 10px 18px;
+    background: #fff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    color: #374151;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background .15s;
+}
+.btn-cancel:hover {
+    background: #f3f4f6;
+}
 
 /* ── Section divider inside card ── */
 .section-gap { margin-top: 28px; padding-top: 24px; border-top: 1px solid #f3f4f6; }
@@ -250,6 +295,16 @@ body {
     font-weight: 600;
     color: #1f2937;
 }
+
+.order-filters {
+    display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;
+}
+.filter-tab {
+    padding: 6px 14px; border-radius: 20px; background: #f3f4f6;
+    font-size: 13px; color: #4b5563; text-decoration: none; font-weight: 500;
+}
+.filter-tab.active { background: #6366f1; color: #fff; }
+.filter-tab:hover:not(.active) { background: #e5e7eb; }
 
 /* Badge styles (extended) */
 .badge {

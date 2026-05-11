@@ -118,9 +118,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_review'])) {
 }
 
 $activeTab = $_GET['tab'] ?? 'description';
-
-include '../includes/header.php';
-include '../includes/cart-panel.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -381,6 +378,11 @@ include '../includes/cart-panel.php';
   </style>
 </head>
 <body>
+
+
+<?php include '../includes/header.php'; ?>
+<?php include '../includes/cart-panel.php'; ?>
+
 
 <main>
   <div class="product-top">
@@ -743,18 +745,20 @@ function matchVariant() {
   });
 
   if (match) {
-    activeVariant = match;
-    const price = parseFloat(match.price);
-    const stock = parseInt(match.stock_quantity ?? 0);
-    // If variant has its own image, swap the main image
-    if (match.image_url) {
-      mainImg.classList.add('switching');
-      setTimeout(() => {
-        mainImg.src = IMGS_BASE + match.image_url;
-        mainImg.classList.remove('switching');
-      }, 200);
-    }
-    updateUI(price, stock, match);
+      activeVariant = match;
+      // Use variant price if it's a valid number; otherwise use base price
+      const price = (match.price != null && !isNaN(parseFloat(match.price)))
+                    ? parseFloat(match.price)
+                    : BASE_PRICE;
+      const stock = parseInt(match.stock_quantity ?? 0);
+      if (match.image_url) {
+        mainImg.classList.add('switching');
+        setTimeout(() => {
+          mainImg.src = IMGS_BASE + match.image_url;
+          mainImg.classList.remove('switching');
+        }, 200);
+      }
+      updateUI(price, stock, match);
   } else {
     // Combination not available
     activeVariant = null;
@@ -763,6 +767,7 @@ function matchVariant() {
 }
 
 function updateUI(price, stock, variant) {
+  if (isNaN(price)) price = BASE_PRICE;
   currentMaxStock = stock;
 
   // Price
@@ -810,7 +815,9 @@ function syncQty() {
 // ── Add to Cart ────────────────────────────────────────
 document.getElementById('addToCart').addEventListener('click', async () => {
   if (currentMaxStock === 0) return;
-  const price = activeVariant ? parseFloat(activeVariant.price) : BASE_PRICE;
+ const price = (activeVariant && activeVariant.price != null && !isNaN(parseFloat(activeVariant.price)))
+              ? parseFloat(activeVariant.price)
+              : BASE_PRICE;
   try {
     const res = await fetch('../includes/add.php', {
       method: 'POST',

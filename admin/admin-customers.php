@@ -23,23 +23,13 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
     // -- Update customer (also saves admin_notes) --
-    if ($action === 'update') {
-        $id      = intval($_POST['id']);
-        $name    = trim($_POST['name']    ?? '');
-        $email   = trim($_POST['email']   ?? '');
-        $phone   = trim($_POST['phone']   ?? '');
-        $address = trim($_POST['address'] ?? '');
-        $notes   = trim($_POST['notes']   ?? '');
+      if ($action === 'update') {
+        $id    = intval($_POST['id']);
+        $notes = trim($_POST['notes'] ?? '');
 
         $res = pg_query_params($conn,
-            "UPDATE users SET
-                username   = $1,
-                email      = $2,
-                phone      = $3,
-                address    = $4,
-                admin_notes = $5
-             WHERE id = $6",
-            [$name, $email, $phone, $address, $notes, $id]
+            "UPDATE users SET admin_notes = $1 WHERE id = $2",
+            [$notes, $id]
         );
         echo json_encode(['success' => (bool)$res]);
         exit;
@@ -48,16 +38,17 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     // -- Get single customer details (for the side panel) --
     if ($action === 'get' && isset($_GET['id'])) {
         $id = intval($_GET['id']);
-        $res = pg_query_params($conn,
-            "SELECT u.id, u.username AS name, u.email, u.phone, u.address,
-                    u.created_at, u.admin_notes,
-                    COUNT(o.id) AS order_count
-             FROM users u
-             LEFT JOIN orders o ON o.user_id = u.id
-             WHERE u.id = $1
-             GROUP BY u.id",
-            [$id]
-        );
+      $res = pg_query_params($conn,
+        "SELECT u.id, u.username AS name, u.email, u.phone, u.address,
+                u.created_at, u.admin_notes,
+                COUNT(o.id) AS order_count,
+                COUNT(o.id) FILTER (WHERE o.status = 'delivered') AS completed_count
+        FROM users u
+        LEFT JOIN orders o ON o.user_id = u.id
+        WHERE u.id = $1
+        GROUP BY u.id",
+        [$id]
+    );
         $customer = pg_fetch_assoc($res);
         echo json_encode($customer ?: ['error' => 'Not found']);
         exit;
@@ -596,24 +587,25 @@ $avatarUrl = !empty($avatarFile) ? '/ecommerce-system/imgs/avatars/' . htmlspeci
         </div>
       </div>
 
-      <div class="panel-section">
-        <div class="panel-section-title">Customer Info</div>
-        <div class="panel-field">
-          <div class="panel-field-label">Full Name</div>
-          <input class="panel-input" type="text" id="editName" placeholder="Full name"/>
-        </div>
-        <div class="panel-field">
-          <div class="panel-field-label">Email</div>
-          <input class="panel-input" type="email" id="editEmail" placeholder="email@example.com" readonly>        </div>
-        <div class="panel-field">
-          <div class="panel-field-label">Phone</div>
-          <input class="panel-input" type="text" id="editPhone" placeholder="+1234567890"/>
-        </div>
-        <div class="panel-field">
-          <div class="panel-field-label">Address</div>
-          <input class="panel-input" type="text" id="editAddress" placeholder="123 Main St, City"/>
-        </div>
+     <div class="panel-section">
+      <div class="panel-section-title">Customer Info</div>
+      <div class="panel-field">
+        <div class="panel-field-label">Full Name</div>
+        <input class="panel-input" type="text" id="editName" placeholder="Full name" readonly disabled>
       </div>
+      <div class="panel-field">
+        <div class="panel-field-label">Email</div>
+        <input class="panel-input" type="email" id="editEmail" placeholder="email@example.com" readonly disabled>        
+      </div>  <!-- ← Email field ends here -->
+      <div class="panel-field">
+        <div class="panel-field-label">Phone</div>
+        <input class="panel-input" type="text" id="editPhone" placeholder="+1234567890" readonly disabled/>
+      </div>
+      <div class="panel-field">
+        <div class="panel-field-label">Address</div>
+        <input class="panel-input" type="text" id="editAddress" placeholder="123 Main St, City" readonly disabled />
+      </div>
+    </div>
 
       <div class="panel-section">
         <div class="panel-section-title">Activity</div>
@@ -703,7 +695,7 @@ async function openPanel(id) {
   document.getElementById('editNotes').value = cust.admin_notes || '';
   document.getElementById('pRegistered').textContent = formatDate(cust.created_at);
   document.getElementById('pOrderCount').textContent = cust.order_count ?? '—';
-  document.getElementById('pCompleted').textContent = Math.floor(cust.order_count * 0.7) ?? '—'; // approximate
+  document.getElementById('pCompleted').textContent = cust.completed_count ?? '—';
 
   document.getElementById('contentArea').classList.add('panel-open');
 }

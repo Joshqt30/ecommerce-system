@@ -10,8 +10,7 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
-include '../includes/cart-panel.php';
-include '../includes/header.php';
+
 include '../config/db.php';
 /** @var resource|\PgSql\Connection $conn */
 ?>
@@ -32,6 +31,10 @@ include '../config/db.php';
     <link rel="stylesheet" href="../assets/css/header.css">
 </head>
 <body>
+
+<?php include '../includes/header.php'; ?>
+<?php include '../includes/cart-panel.php'; ?>
+
 
     <!-- Search Bar -->
     <div class="search-bar">

@@ -1,17 +1,27 @@
 <?php
 session_start();
 
+// CSRF token
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+// Profile update token – prevent double submit
+if (empty($_SESSION['profile_form_token'])) {
+    $_SESSION['profile_form_token'] = bin2hex(random_bytes(16));
+}
+// Redirect to login if not authenticated
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
 }
 
 include '../config/db.php';
-include '../includes/header.php';
-include '../includes/cart-panel.php';
 
 $user_id = $_SESSION['user_id'];
 $tab = $_GET['tab'] ?? 'profile';
+
+$editMode = isset($_GET['edit']) && $_GET['edit'] === '1';
 
 $userQuery = "SELECT username, email, phone, birth_date, address FROM users WHERE id = $1";
 $userResult = pg_query_params($conn, $userQuery, [$user_id]);
@@ -19,6 +29,19 @@ $userResult = pg_query_params($conn, $userQuery, [$user_id]);
 $user = pg_fetch_assoc($userResult);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
+
+if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    die("CSRF validation failed");
+}
+
+// Check / consume profile form token
+if (!isset($_POST['profile_form_token']) || $_POST['profile_form_token'] !== $_SESSION['profile_form_token']) {
+    // This is a duplicate submission – silently ignore it
+    header("Location: " . $_SERVER['PHP_SELF'] . "?tab=profile&updated=1");
+    exit;
+}
+// Token valid – immediately regenerate
+$_SESSION['profile_form_token'] = bin2hex(random_bytes(16));
 
     $username = trim($_POST['username'] ?? '');
     $email    = trim($_POST['email'] ?? '');
@@ -37,7 +60,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
     ) {
         $error = "No changes detected.";
     } else {
+    
+    // Check if email changed – require current password
+    $emailChanged = ($email !== $user['email']);
+    if ($emailChanged) {
+        $currentPassword = $_POST['current_password_profile'] ?? '';
+        $passCheck = pg_query_params($conn, "SELECT password FROM users WHERE id = $1", [$user_id]);
+        $passRow = pg_fetch_assoc($passCheck);
+        if (!$passRow || !password_verify($currentPassword, $passRow['password'])) {
+            $error = "Your current password is required to change your email.";
+        }
+    }
 
+    if (empty($error)) {
+    // Ensure email is not taken by another user
+    if ($emailChanged) {
+        $dupCheck = pg_query_params($conn,
+            "SELECT id FROM users WHERE email = $1 AND id != $2", [$email, $user_id]
+        );
+        if (pg_num_rows($dupCheck) > 0) {
+            $error = "This email is already used by another account.";
+        }
+    }
+ }
+    
+    if (empty($error)) {
         $updateQuery = "
             UPDATE users 
             SET username = $1,
@@ -58,16 +105,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
         ]);
 
         if ($updateResult) {
-            $success = "Profile updated!";
-            $userResult = pg_query_params($conn, $userQuery, [$user_id]);
-            $user = pg_fetch_assoc($userResult);
+        header("Location: " . $_SERVER['PHP_SELF'] . "?tab=profile&updated=1");
+        exit;
         } else {
             $error = pg_last_error($conn);
         }
     }
+  }
 }
 
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
+
+if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    die("CSRF validation failed");
+}
 
     $current = $_POST['current_password'] ?? '';
     $new     = $_POST['new_password'] ?? '';
@@ -81,13 +133,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
         $passError = "Current password is incorrect!";
     } elseif ($new !== $confirm) {
         $passError = "New passwords do not match!";
+    } elseif (strlen($new) < 8) {
+        $passError = "New password must be at least 8 characters.";
     } else {
-
         $hashed = password_hash($new, PASSWORD_DEFAULT);
-
         $updatePass = "UPDATE users SET password = $1 WHERE id = $2";
         $passResult = pg_query_params($conn, $updatePass, [$hashed, $user_id]);
-
         if ($passResult) {
             $passSuccess = "Password updated successfully!";
         } else {
@@ -97,18 +148,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
 }
 
 $orders = [];
+$orderStatus = $_GET['order_status'] ?? 'all';
 
-$orderQuery = "
-    SELECT o.id, o.total, o.status, o.created_at,
-           oi.variant_id, oi.product_name, oi.quantity, oi.price, oi.image_url
-    FROM orders o
-    LEFT JOIN order_items oi ON o.id = oi.order_id
-    WHERE o.user_id = $1
-    ORDER BY o.created_at DESC, o.id DESC
-";
+// Build the query
+if ($orderStatus === 'all') {
+    $orderResult = pg_query_params($conn,
+        "SELECT o.id, o.total, o.status, o.created_at,
+                oi.variant_id, oi.product_name, oi.quantity, oi.price, oi.image_url
+         FROM orders o
+         LEFT JOIN order_items oi ON o.id = oi.order_id
+         WHERE o.user_id = $1
+         ORDER BY o.created_at DESC, o.id DESC",
+        [$user_id]
+    );
+} else {
+    $statusValue = ($orderStatus === 'completed') ? 'delivered' : $orderStatus;
+    $orderResult = pg_query_params($conn,
+        "SELECT o.id, o.total, o.status, o.created_at,
+                oi.variant_id, oi.product_name, oi.quantity, oi.price, oi.image_url
+         FROM orders o
+         LEFT JOIN order_items oi ON o.id = oi.order_id
+         WHERE o.user_id = $1 AND o.status = $2
+         ORDER BY o.created_at DESC, o.id DESC",
+        [$user_id, $statusValue]
+    );
+}
 
-$orderResult = pg_query_params($conn, $orderQuery, [$user_id]);
-
+$orders = [];
 if ($orderResult) {
     while ($row = pg_fetch_assoc($orderResult)) {
         $orderId = $row['id'];
@@ -121,7 +187,6 @@ if ($orderResult) {
                 'items'      => []
             ];
         }
-
         if ($row['product_name']) {
             $orders[$orderId]['items'][] = [
                 'variant_id' => $row['variant_id'],
@@ -133,11 +198,34 @@ if ($orderResult) {
         }
     }
 }
-
 $orders = array_values($orders);
+
+$orderCounts = ['all' => 0, 'pending' => 0, 'completed' => 0, 'cancelled' => 0];
+$countRes = pg_query_params($conn,
+    "SELECT status, COUNT(*) AS cnt FROM orders WHERE user_id = $1 GROUP BY status",
+    [$user_id]
+);
+while ($c = pg_fetch_assoc($countRes)) {
+    $orderCounts[$c['status']] = (int)$c['cnt'];
+    $orderCounts['all']      += (int)$c['cnt'];
+}
+// Map 'delivered' to 'completed' in counts
+$orderCounts['completed'] = ($orderCounts['delivered'] ?? 0);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_account'])) {
 
+if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+    die("CSRF validation failed");
+}
+
+    $passwordInput = $_POST['current_password_delete'] ?? '';
+    $passCheck = pg_query_params($conn, "SELECT password FROM users WHERE id = $1", [$user_id]);
+    $passRow = pg_fetch_assoc($passCheck);
+
+    if (!$passRow || !password_verify($passwordInput, $passRow['password'])) {
+        $deleteError = "Password incorrect. Account not deleted.";
+        // do not delete, let page render with error
+    } else {
     $deleteItems = pg_query_params(
         $conn,
         "DELETE FROM order_items 
@@ -168,7 +256,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_account'])) {
             window.location='../auth/login.php';
           </script>";
     exit();
-}
+  }
+ }
 }
 ?>
 
@@ -186,6 +275,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_account'])) {
     <link rel="stylesheet" href="../assets/css/profile.css">
 </head>
 <body>
+
+<?php include '../includes/header.php'; ?>
+<?php include '../includes/cart-panel.php'; ?>
 
 <div class="account-page">
 
@@ -224,49 +316,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_account'])) {
     <!-- ── Profile card ───────────────────────────────── -->
     <div class="account-card <?= $tab === 'profile' ? 'active' : '' ?>">
 
-        <?php if (isset($success)): ?>
-            <div class="success-message" style="color:green; margin-bottom:10px;"><?= htmlspecialchars($success) ?></div>
-        <?php endif; ?>
+        <?php if (isset($_GET['updated']) && $_GET['updated'] == '1'): ?>
+            <div class="success-message" style="color:green; margin-bottom:10px;">Profile updated!</div>
+         <?php endif; ?>
 
-        <?php if (isset($error)): ?>
+         <?php if (isset($error)): ?>
             <div class="error-message" style="color:red; margin-bottom:10px;"><?= htmlspecialchars($error) ?></div>
         <?php endif; ?>
 
-        <form method="POST">
+      <form id="profileForm" method="POST" 
+      onsubmit="document.querySelector('#profileForm .btn-save').disabled = true;">
         <input type="hidden" name="update_profile" value="1">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+        <input type="hidden" name="profile_form_token" value="<?= htmlspecialchars($_SESSION['profile_form_token']) ?>">
 
-        <h2 class="card-title">Personal Information</h2>
+       <h2 class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+            Personal Information
+            <a href="?tab=profile&edit=1" class="btn-edit-icon" title="Edit profile">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+            </a>
+        </h2>
         <p class="card-subtitle">Update your personal details here.</p>
 
         <div class="form-grid">
             <div class="field">
                 <label class="field-label">Username</label>
-                <input class="field-input" type="text" name="username" value="<?= htmlspecialchars($user['username'] ?? '') ?>" placeholder="First name">
+                <input class="field-input" type="text" name="username" value="<?= htmlspecialchars($user['username'] ?? '') ?>"
+                       <?= $editMode ? '' : 'readonly' ?> placeholder="First name">
             </div>
         </div>
         <div class="form-grid single">
             <div class="field">
                 <label class="field-label">Email Address</label>
-                <input class="field-input" type="email" name="email" value="<?= htmlspecialchars($user['email'] ?? '') ?>" placeholder="Email address">
+                <input class="field-input" type="email" name="email" value="<?= htmlspecialchars($user['email'] ?? '') ?>"
+                       <?= $editMode ? '' : 'readonly' ?> placeholder="Email address">
             </div>
         </div>
         <div class="form-grid">
             <div class="field">
                 <label class="field-label">Phone Number</label>
-                <input class="field-input" type="tel" name="phone" value="<?= htmlspecialchars($user['phone'] ?? '') ?>" placeholder="Phone number" required>
+                <input class="field-input" type="tel" name="phone" value="<?= htmlspecialchars($user['phone'] ?? '') ?>"
+                       <?= $editMode ? '' : 'readonly' ?> placeholder="Phone number" required>
             </div>
             <div class="field">
                 <label class="field-label">Date of Birth</label>
-                <input class="field-input" type="date" name="birth_date" value="<?= htmlspecialchars($user['birth_date'] ?? '') ?>" placeholder="Date of birth" required>
+                <input class="field-input" type="date" name="birth_date" value="<?= htmlspecialchars($user['birth_date'] ?? '') ?>"
+                       <?= $editMode ? '' : 'readonly' ?> placeholder="Date of birth" required>
             </div>
         </div>
         <div class="form-grid single">
             <div class="field">
                 <label class="field-label">Delivery Address</label>
-                <input class="field-input" type="text" name="address" value="<?= htmlspecialchars($user['address'] ?? '') ?>" placeholder="Street, City, Province, ZIP" required>
+                <input class="field-input" type="text" name="address" value="<?= htmlspecialchars($user['address'] ?? '') ?>"
+                       <?= $editMode ? '' : 'readonly' ?> placeholder="Street, City, Province, ZIP" required>
             </div>
         </div>
-                <button class="btn-save" type="submit">Save Changes</button>
+
+        <div class="form-grid single" id="currentPasswordField" style="display:none;">
+            <div class="field">
+                <label class="field-label">Current Password (required to change email)</label>
+                <input class="field-input" type="password" name="current_password_profile" placeholder="Enter your current password" autocomplete="off">
+            </div>
+        </div>
+            <?php if ($editMode): ?>
+               <div class="save-row" style="display: flex; gap: 8px; align-items: center;">
+                   <button class="btn-save" type="submit">Save Changes</button>
+                   <a href="?tab=profile" class="btn-cancel">Cancel</a>
+               </div>
+            <?php endif; ?>
         </form>
         </div>
 
@@ -274,6 +394,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_account'])) {
         <div class="account-card <?= $tab === 'orders' ? 'active' : '' ?>">
             <h2 class="card-title">My Orders</h2>
             <p class="card-subtitle">Your recent order history.</p>
+
+        <div class="order-filters">
+            <a href="?tab=orders&order_status=all"       class="filter-tab <?= $orderStatus === 'all' ? 'active' : '' ?>">All (<?= $orderCounts['all'] ?>)</a>
+        <a href="?tab=orders&order_status=pending"   class="filter-tab <?= $orderStatus === 'pending' ? 'active' : '' ?>">Pending (<?= $orderCounts['pending'] ?>)</a>
+        <a href="?tab=orders&order_status=completed" class="filter-tab <?= $orderStatus === 'completed' ? 'active' : '' ?>">Completed (<?= $orderCounts['completed'] ?>)</a>
+        <a href="?tab=orders&order_status=cancelled" class="filter-tab <?= $orderStatus === 'cancelled' ? 'active' : '' ?>">Cancelled (<?= $orderCounts['cancelled'] ?>)</a>
+        </div>
 
             <?php if (empty($orders)): ?>
                 <div class="no-orders">
@@ -341,6 +468,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_account'])) {
     <div class="section-title">Change Password</div>
     <form method="POST">
         <input type="hidden" name="change_password" value="1">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
 
         <div class="form-grid single" style="margin-bottom:14px;">
             <div class="field">
@@ -361,44 +489,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_account'])) {
         <button class="btn-save" type="submit">Update Password</button>
     </form>
 
-        <!-- Notifications -->
-        <div class="section-gap">
-            <div class="section-title">Notifications</div>
-
-            <div class="toggle-row">
-                <div class="toggle-info">
-                    <span class="toggle-label">Order Updates</span>
-                    <span class="toggle-desc">Get notified about your order status changes</span>
-                </div>
-                <label class="toggle-switch">
-                    <input type="checkbox" checked>
-                    <span class="toggle-track"></span>
-                </label>
-            </div>
-
-            <div class="toggle-row">
-                <div class="toggle-info">
-                    <span class="toggle-label">Promotions & Deals</span>
-                    <span class="toggle-desc">Receive emails about sales and special offers</span>
-                </div>
-                <label class="toggle-switch">
-                    <input type="checkbox" checked>
-                    <span class="toggle-track"></span>
-                </label>
-            </div>
-
-            <div class="toggle-row">
-                <div class="toggle-info">
-                    <span class="toggle-label">Newsletter</span>
-                    <span class="toggle-desc">Weekly digest of new products and updates</span>
-                </div>
-                <label class="toggle-switch">
-                    <input type="checkbox">
-                    <span class="toggle-track"></span>
-                </label>
-            </div>
-        </div>
-
+        <?php if (isset($deleteError)): ?>
+        <div class="error-message" style="color:red; margin-bottom:10px;"><?= htmlspecialchars($deleteError) ?></div>
+    <?php endif; ?>
         <!-- Danger zone -->
         <div class="section-gap">
             <div class="section-title" style="color:#ef4444;">Danger Zone</div>
@@ -407,12 +500,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_account'])) {
                     <p class="danger-title">Delete Account</p>
                     <p class="danger-desc">Permanently delete your account. This cannot be undone.</p>
                 </div>
-                <form method="POST"
-                    onsubmit="return confirm('Delete your account permanently? This cannot be undone.');">
+                <form method="POST" onsubmit="return confirm('Delete your account permanently? This cannot be undone.');">
                     <input type="hidden" name="delete_account" value="1">
-                    <button type="submit" class="btn-danger">
-                        Delete Account
-                    </button>
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
+                    <div class="form-grid single" style="margin-bottom:14px;">
+                        <div class="field">
+                            <label class="field-label">Enter your password to confirm</label>
+                            <input class="field-input" type="password" name="current_password_delete" placeholder="Your current password" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-danger">Delete Account</button>
                 </form>
             </div>
         </div>
@@ -458,7 +555,20 @@ window.addEventListener("DOMContentLoaded", () => {
         }, 1500);
     });
 });
+
+// Show/hide password field when email changes
+document.addEventListener('DOMContentLoaded', function() {
+    const emailInput = document.querySelector('input[name="email"]');
+    const passwordDiv = document.getElementById('currentPasswordField');
+    if (!emailInput || !passwordDiv) return;
+    const originalEmail = emailInput.value;
+    emailInput.addEventListener('input', function() {
+        passwordDiv.style.display = (emailInput.value !== originalEmail) ? 'block' : 'none';
+    });
+});
+
 </script>
 
 </body>
 </html>
+
