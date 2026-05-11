@@ -26,7 +26,7 @@ $editMode = isset($_GET['edit']) && $_GET['edit'] === '1';
 $userQuery = "SELECT username, email, phone, birth_date, address FROM users WHERE id = $1";
 $userResult = pg_query_params($conn, $userQuery, [$user_id]);
 
-$user = pg_fetch_assoc($userResult);
+$profileUser = pg_fetch_assoc($userResult);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
 
@@ -52,17 +52,17 @@ $_SESSION['profile_form_token'] = bin2hex(random_bytes(16));
     $birth = ($birth === '') ? null : $birth;
 
     if (
-        $username === $user['username'] &&
-        $email === $user['email'] &&
-        $phone === $user['phone'] &&
-        $birth === $user['birth_date'] &&
-        $address === $user['address']
+        $username === $profileUser['username'] &&
+        $email === $profileUser['email'] &&
+        $phone === $profileUser['phone'] &&
+        $birth === $profileUser['birth_date'] &&
+        $address === $profileUser['address']
     ) {
         $error = "No changes detected.";
     } else {
     
     // Check if email changed – require current password
-    $emailChanged = ($email !== $user['email']);
+    $emailChanged = ($email !== $profileUser['email']);
     if ($emailChanged) {
         $currentPassword = $_POST['current_password_profile'] ?? '';
         $passCheck = pg_query_params($conn, "SELECT password FROM users WHERE id = $1", [$user_id]);
@@ -344,33 +344,33 @@ if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_tok
         <div class="form-grid">
             <div class="field">
                 <label class="field-label">Username</label>
-                <input class="field-input" type="text" name="username" value="<?= htmlspecialchars($user['username'] ?? '') ?>"
+                <input class="field-input" type="text" name="username" value="<?= htmlspecialchars($profileUser['username'] ?? '') ?>"
                        <?= $editMode ? '' : 'readonly' ?> placeholder="First name">
             </div>
         </div>
         <div class="form-grid single">
             <div class="field">
                 <label class="field-label">Email Address</label>
-                <input class="field-input" type="email" name="email" value="<?= htmlspecialchars($user['email'] ?? '') ?>"
+                <input class="field-input" type="email" name="email" value="<?= htmlspecialchars($profileUser['email'] ?? '') ?>"
                        <?= $editMode ? '' : 'readonly' ?> placeholder="Email address">
             </div>
         </div>
         <div class="form-grid">
             <div class="field">
                 <label class="field-label">Phone Number</label>
-                <input class="field-input" type="tel" name="phone" value="<?= htmlspecialchars($user['phone'] ?? '') ?>"
+                <input class="field-input" type="tel" name="phone" value="<?= htmlspecialchars($profileUser['phone'] ?? '') ?>"
                        <?= $editMode ? '' : 'readonly' ?> placeholder="Phone number" required>
             </div>
             <div class="field">
                 <label class="field-label">Date of Birth</label>
-                <input class="field-input" type="date" name="birth_date" value="<?= htmlspecialchars($user['birth_date'] ?? '') ?>"
+                <input class="field-input" type="date" name="birth_date" value="<?= htmlspecialchars($profileUser['birth_date'] ?? '') ?>"
                        <?= $editMode ? '' : 'readonly' ?> placeholder="Date of birth" required>
             </div>
         </div>
         <div class="form-grid single">
             <div class="field">
                 <label class="field-label">Delivery Address</label>
-                <input class="field-input" type="text" name="address" value="<?= htmlspecialchars($user['address'] ?? '') ?>"
+                <input class="field-input" type="text" name="address" value="<?= htmlspecialchars($profileUser['address'] ?? '') ?>"
                        <?= $editMode ? '' : 'readonly' ?> placeholder="Street, City, Province, ZIP" required>
             </div>
         </div>
