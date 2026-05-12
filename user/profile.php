@@ -40,7 +40,7 @@ $tab = $_GET['tab'] ?? 'profile';
 
 $editMode = isset($_GET['edit']) && $_GET['edit'] === '1';
 
-$userQuery = "SELECT username, email, phone, birth_date, address, first_name, last_name FROM users WHERE id = $1";
+$userQuery = "SELECT username, email, phone, birth_date, address, first_name, last_name, avatar FROM users WHERE id = $1";
 $userResult = pg_query_params($conn, $userQuery, [$user_id]);
 
 $profileUser = pg_fetch_assoc($userResult);
@@ -60,6 +60,7 @@ if (!isset($_POST['profile_form_token']) || $_POST['profile_form_token'] !== $_S
 // Token valid – immediately regenerate
 $_SESSION['profile_form_token'] = bin2hex(random_bytes(16));
 
+
     $username = trim($_POST['username'] ?? '');
     $email    = trim($_POST['email'] ?? '');
     $phone    = trim($_POST['phone'] ?? '');
@@ -70,6 +71,43 @@ $_SESSION['profile_form_token'] = bin2hex(random_bytes(16));
 
     $birth = ($birth === '') ? null : $birth;
 
+
+            // ── Avatar upload ────────────────────────────
+        $avatarPath = $profileUser['avatar'] ?? null; // keep existing
+
+        if (isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
+            $file     = $_FILES['avatar'];
+            $maxSize  = 2 * 1024 * 1024; // 2MB
+            $allowed  = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+            $finfo    = finfo_open(FILEINFO_MIME_TYPE);
+            $mimeType = finfo_file($finfo, $file['tmp_name']);
+            finfo_close($finfo);
+
+            if (!in_array($mimeType, $allowed)) {
+                $error = 'Avatar must be JPG, PNG, WebP, or GIF.';
+            } elseif ($file['size'] > $maxSize) {
+                $error = 'Avatar must be under 2MB.';
+            } else {
+                $ext       = pathinfo($file['name'], PATHINFO_EXTENSION);
+                $filename  = 'user_' . $user_id . '_' . time() . '.' . strtolower($ext);
+                $uploadDir = '../imgs/avatars/';
+
+                if (!is_dir($uploadDir)) {
+                    mkdir($uploadDir, 0755, true);
+                }
+
+                if (move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) {
+                    // Delete old avatar if exists
+                    if (!empty($profileUser['avatar']) && file_exists($uploadDir . $profileUser['avatar'])) {
+                        @unlink($uploadDir . $profileUser['avatar']);
+                    }
+                    $avatarPath = $filename;
+                } else {
+                    $error = 'Failed to upload avatar. Check folder permissions.';
+                }
+            }
+        }
+
     if (
         $username   === $profileUser['username'] &&
         $email      === $profileUser['email'] &&
@@ -77,7 +115,8 @@ $_SESSION['profile_form_token'] = bin2hex(random_bytes(16));
         $birth      === $profileUser['birth_date'] &&
         $address    === $profileUser['address'] &&
         $first_name === $profileUser['first_name'] &&
-        $last_name  === $profileUser['last_name']
+        $last_name  === $profileUser['last_name'] &&
+        $avatarPath === ($profileUser['avatar'] ?? null)
     ) {
         $error = "No changes detected.";
     }else {
@@ -106,27 +145,13 @@ $_SESSION['profile_form_token'] = bin2hex(random_bytes(16));
  }
     
     if (empty($error)) {
-        $updateQuery = "
+            $updateQuery = "
             UPDATE users 
-            SET username = $1,
-                email = $2,
-                phone = $3,
-                birth_date = $4,
-                address = $5,
-                first_name = $6,
-                last_name = $7
-            WHERE id = $8
+            SET username = $1, email = $2, phone = $3, birth_date = $4, address = $5, first_name = $6, last_name = $7, avatar = $8
+            WHERE id = $9
         ";
-
         $updateResult = pg_query_params($conn, $updateQuery, [
-            $username,
-            $email,
-            $phone,
-            $birth,
-            $address,
-            $first_name,
-            $last_name,
-            $user_id
+            $username, $email, $phone, $birth, $address, $first_name, $last_name, $avatarPath, $user_id
         ]);
 
         if ($updateResult) {
@@ -349,7 +374,7 @@ if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_tok
             <div class="error-message" style="color:red; margin-bottom:10px;"><?= htmlspecialchars($error) ?></div>
         <?php endif; ?>
 
-      <form id="profileForm" method="POST" 
+      <form id="profileForm" method="POST" enctype="multipart/form-data"
       onsubmit="document.querySelector('#profileForm .btn-save').disabled = true;">
         <input type="hidden" name="update_profile" value="1">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']) ?>">
@@ -365,6 +390,36 @@ if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_tok
             </a>
         </h2>
         <p class="card-subtitle">Update your personal details here.</p>
+
+                <!-- Avatar upload -->
+        <div style="display:flex; align-items:center; gap:16px; margin-bottom:24px;">
+            <label class="avatar-zone" for="avatarInput" title="Click to change photo">
+                <div class="avatar-circle" id="avatarCircle">
+                    <?php
+                    $avatarFile = $profileUser['avatar'] ?? '';
+                    $avatarUrl = !empty($avatarFile) ? '/ecommerce-system/imgs/avatars/' . htmlspecialchars($avatarFile) : null;
+                    ?>
+                    <?php if ($avatarUrl): ?>
+                        <img src="<?= $avatarUrl ?>" alt="Avatar" id="avatarPreview" style="width:100%;height:100%;object-fit:cover;border-radius:50%"/>
+                    <?php else: ?>
+                        <svg id="avatarPlaceholder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:36px;height:36px;color:#bbb;">
+                            <circle cx="12" cy="8" r="4"/>
+                            <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                        </svg>
+                    <?php endif; ?>
+                </div>
+                <div class="avatar-upload-badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="12" height="12">
+                        <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                    </svg>
+                </div>
+            </label>
+            <input type="file" name="avatar" id="avatarInput" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none"/>
+            <div>
+                <p style="font-weight:600;font-size:14px;color:var(--text)">Profile Photo</p>
+                <p style="font-size:11px;color:var(--muted)">JPG, PNG, WebP · Max 2MB</p>
+            </div>
+        </div>
 
         <div class="form-grid">
             <div class="field">
@@ -619,6 +674,27 @@ document.addEventListener('DOMContentLoaded', function() {
     emailInput.addEventListener('input', function() {
         passwordDiv.style.display = (emailInput.value !== originalEmail) ? 'block' : 'none';
     });
+
+    // Avatar preview on file selection
+    const avatarInput = document.getElementById('avatarInput');
+    if (avatarInput) {
+        avatarInput.addEventListener('change', function() {
+            const file = this.files[0];
+            if (!file) return;
+            if (file.size > 2 * 1024 * 1024) {
+                alert('File too large. Max 2MB.');
+                this.value = '';
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const circle = document.getElementById('avatarCircle');
+                circle.innerHTML = `<img src="${e.target.result}" alt="Preview" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
 });
 
 </script>

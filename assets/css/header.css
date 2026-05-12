@@ -163,6 +163,21 @@
 }
 
 /* Avatar circle — matches screenshot grey circle */
+
+.account-avatar-img {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.dd-avatar-img {
+    width: 62px;
+    height: 62px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
 .dd-avatar {
   width: 62px;
   height: 62px;

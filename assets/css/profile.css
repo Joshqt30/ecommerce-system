@@ -399,3 +399,32 @@ body {
 .btn-cancel-order:hover {
     background: #fef2f2;
 }
+
+.avatar-circle {
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    background: #f0f0f0;
+    border: 3px solid var(--border);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color .18s;
+    cursor: pointer;
+}
+.avatar-circle:hover { border-color: #aaa; }
+.avatar-upload-badge {
+    position: absolute;   /* make sure parent is position:relative */
+    bottom: 2px; right: 2px;
+    width: 26px; height: 26px;
+    background: #14181F;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .15s;
+}
+.avatar-zone:hover .avatar-upload-badge { background: #2d3340; }
+.avatar-zone { position: relative; display: inline-block; cursor: pointer; }

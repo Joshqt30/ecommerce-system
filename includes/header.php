@@ -9,7 +9,7 @@ $user = null;
 if (isset($_SESSION['user_id'])) {
     $user_id = $_SESSION['user_id'];
 
-    $query = "SELECT username, email FROM users WHERE id = $1";
+    $query = "SELECT username, email, avatar FROM users WHERE id = $1";
     $result = pg_query_params($conn, $query, [$user_id]);
 
     if ($result && pg_num_rows($result) > 0) {
@@ -48,34 +48,43 @@ if (isset($_SESSION['user_id'])) {
             <div class="account-wrap" id="accountWrap">
  
                 <!-- Circular account button -->
-                <button class="account-btn" id="accountBtn" aria-label="Account menu">
+              <button class="account-btn" id="accountBtn" aria-label="Account menu">
+                <?php if (!empty($user['avatar'])): ?>
+                    <img src="/ecommerce-system/imgs/avatars/<?= htmlspecialchars($user['avatar']) ?>" 
+                        alt="Avatar" class="account-avatar-img">
+                <?php else: ?>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="8" r="4"/>
                         <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
                     </svg>
-                </button>
+                <?php endif; ?>
+            </button>
  
                 <!-- Dropdown — matches the screenshot exactly -->
                 <div class="account-dropdown" id="accountDropdown">
  
                     <!-- Avatar + name + email -->
                     <div class="dd-profile">
-                        <div class="dd-avatar">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="12" cy="8" r="4"/>
-                                <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-                            </svg>
-                            <!-- Edit badge -->
-                            <span class="dd-avatar-badge">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                     stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M12 20h9"/>
-                                    <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
-                                </svg>
-                            </span>
-                        </div>
+                <div class="dd-avatar">
+                    <?php if (!empty($user['avatar'])): ?>
+                        <img src="/ecommerce-system/imgs/avatars/<?= htmlspecialchars($user['avatar']) ?>" 
+                            alt="Avatar" class="dd-avatar-img">
+                    <?php else: ?>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="8" r="4"/>
+                            <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                        </svg>
+                    <?php endif; ?>
+                    <span class="dd-avatar-badge">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 20h9"/>
+                            <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                        </svg>
+                    </span>
+                </div>
                         <p class="dd-name">
                         <?= isset($user['username']) ? $user['username'] : 'Guest'; ?>
                     </p>
