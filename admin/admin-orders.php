@@ -64,6 +64,9 @@ $orderSQL = '
         o.payment_status,
         u.username,
         u.email,
+        u.first_name,
+        u.last_name, 
+        o.cancelled_by,  
         (SELECT product_name FROM order_items WHERE order_id = o.id LIMIT 1) AS first_product,
         (SELECT COUNT(*) FROM order_items WHERE order_id = o.id) AS item_count,
         (SELECT image_url FROM order_items WHERE order_id = o.id LIMIT 1) AS image_url
@@ -117,7 +120,10 @@ if ($orderResult) {
             'payment'        => $paymentLabel,
             'pay_class'      => $payClass,
             'status'         => ucfirst($row['status']),
-            'customer'       => $row['username'] . ' (' . $row['email'] . ')'
+            'customer'       => $row['username'] . ' (' . $row['email'] . ')',
+            'customer_name'  => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')) ?: $row['username'],
+            'cancelled_by'   => $row['cancelled_by'],   // ← new line
+            'item_count'     => $row['item_count'] ?? 1, 
         ];
     }
 }
@@ -266,6 +272,8 @@ function orderStatusStyle(string $status): array {
       -webkit-appearance: none;
       transition: background .15s, box-shadow .15s;
     }
+
+    td:has(> span.customer-name) { white-space: nowrap; font-size: 13px; color: var(--text); }
 
     .interactive-badge .badge-arrow {
       position: absolute;
@@ -530,7 +538,7 @@ function orderStatusStyle(string $status): array {
 
       <table class="ord-table">
         <thead>
-          <tr><th class="col-no">No.</th><th>Order Id</th><th>Product</th><th>Date</th><th>Price</th><th>Payment</th><th>Status</th><th></th></tr>
+          <tr><th class="col-no">No.</th><th>Order Id</th><th>Customer</th><th>Product</th><th>Date</th><th>Price</th><th>Payment</th><th>Status</th><th></th></tr>
         </thead>
         <tbody>
           <?php if (empty($paged)): ?>
@@ -543,6 +551,7 @@ function orderStatusStyle(string $status): array {
             <tr>
               <td class="col-no"><?= $rowNo ?></td>
               <td class="col-oid">#<?= htmlspecialchars($o['order_id']) ?></td>
+              <td><?= htmlspecialchars($o['customer_name']) ?></td>
                 <td>
               <div class="product-cell">
                   <img src="<?= PRODUCT_IMGS_BASE . htmlspecialchars($o['image']) ?>"
@@ -567,19 +576,25 @@ function orderStatusStyle(string $status): array {
                   <svg class="badge-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
               </button>
           </td>
-          <td>
-                <div class="select-badge-wrap">
-                    <select class="interactive-badge status-select" 
-                            data-order-id="<?= $o['id'] ?>" 
-                            onchange="updateOrderStatus(<?= $o['id'] ?>, this.value)">
-                      <option value="pending"   <?= $currentStatus === 'pending'   ? 'selected' : '' ?>>Pending</option>
-                      <option value="shipped"   <?= $currentStatus === 'shipped'   ? 'selected' : '' ?>>Shipped</option>
-                      <option value="delivered" <?= $currentStatus === 'delivered' ? 'selected' : '' ?>>Delivered</option>
-                      <option value="cancelled" <?= $currentStatus === 'cancelled' ? 'selected' : '' ?>>Cancelled</option>
-                    </select>
-                    <svg class="badge-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-                </div>
-            </td>
+                  <td>
+              <?php if (strtolower($o['status']) === 'cancelled' && ($o['cancelled_by'] ?? '') === 'user'): ?>
+                  <!-- Locked badge – user cancelled, admin cannot change -->
+                  <span class="status-badge badge-cancelled">Cancelled</span>
+              <?php else: ?>
+                  <!-- Editable dropdown – admin can change -->
+                  <div class="select-badge-wrap">
+                      <select class="interactive-badge status-select" 
+                              data-order-id="<?= $o['id'] ?>" 
+                              onchange="updateOrderStatus(<?= $o['id'] ?>, this.value)">
+                        <option value="pending"   <?= $currentStatus === 'pending'   ? 'selected' : '' ?>>Pending</option>
+                        <option value="shipped"   <?= $currentStatus === 'shipped'   ? 'selected' : '' ?>>Shipped</option>
+                        <option value="delivered" <?= $currentStatus === 'delivered' ? 'selected' : '' ?>>Delivered</option>
+                        <option value="cancelled" <?= $currentStatus === 'cancelled' ? 'selected' : '' ?>>Cancelled</option>
+                      </select>
+                      <svg class="badge-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                  </div>
+              <?php endif; ?>
+          </td>
               <td>
                 <div class="row-actions">
                <a href="admin-order-detail.php?id=<?= $o['id'] ?>" class="action-btn" title="View order">

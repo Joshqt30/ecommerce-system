@@ -12,7 +12,7 @@ define('PRODUCT_IMGS_BASE', '/ecommerce-system/imgs/products/');
 
 $orderId = (int)($_GET['id'] ?? 0);
 $res = pg_query_params($conn,
-    "SELECT o.*, u.username, u.email
+    "SELECT o.*, u.username, u.email, u.first_name, u.last_name
      FROM orders o JOIN users u ON u.id = o.user_id
      WHERE o.id = $1",
     [$orderId]
@@ -45,6 +45,8 @@ $adminName = $_SESSION['username'] ?? 'Admin';
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -83,7 +85,24 @@ $adminName = $_SESSION['username'] ?? 'Admin';
     .nav-item.active { background: var(--text); color: #fff; font-weight: 600; }
 
     .main-content { display: flex; flex-direction: column; padding: 28px 28px 48px; gap: 24px; overflow-y: auto; background: var(--bg); }
-    .page-header { display: flex; align-items: center; justify-content: space-between; }
+      .page-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;           /* space between back link and title */
+        margin-bottom: 0;
+    }
+    .back-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    text-decoration: none;
+    transition: color .15s;
+    }
+    .back-link:hover { text-decoration: underline; }
+    .page-title { font-size: 22px; font-weight: 700; letter-spacing: -.4px; }
     .page-title { font-size: 22px; font-weight: 700; letter-spacing: -.4px; }
     .back-link { color: var(--blue); text-decoration: none; font-weight: 600; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; margin-bottom: 4px; }
     .back-link:hover { text-decoration: underline; }
@@ -95,7 +114,6 @@ $adminName = $_SESSION['username'] ?? 'Admin';
     .card-title { font-size: 16px; font-weight: 700; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
 
     .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .detail-item { }
     .detail-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
     .detail-value { font-size: 14px; font-weight: 500; }
 
@@ -155,8 +173,10 @@ $adminName = $_SESSION['username'] ?? 'Admin';
 
   <!-- Main -->
   <main class="main-content">
-    <div>
-      <a href="admin-orders.php" class="back-link">← Back to Orders</a>
+      <div class="page-header">
+      <a href="admin-orders.php" class="back-link">
+        ← Back
+      </a>
       <h1 class="page-title">Order #<?= str_pad($order['id'], 6, '0', STR_PAD_LEFT) ?></h1>
     </div>
 
@@ -166,7 +186,15 @@ $adminName = $_SESSION['username'] ?? 'Admin';
       <div class="detail-grid">
         <div class="detail-item">
           <div class="detail-label">Customer</div>
-          <div class="detail-value"><?= htmlspecialchars($order['username']) ?> (<?= htmlspecialchars($order['email']) ?>)</div>
+          <div class="detail-value">
+            <?php
+              $fullName = trim(($order['first_name'] ?? '') . ' ' . ($order['last_name'] ?? ''));
+              if ($fullName === '') {
+                  $fullName = $order['username'];
+              }
+              echo htmlspecialchars($fullName) . ' (' . htmlspecialchars($order['email']) . ')';
+            ?>
+          </div>
         </div>
         <div class="detail-item">
           <div class="detail-label">Date</div>
@@ -199,12 +227,36 @@ $adminName = $_SESSION['username'] ?? 'Admin';
     <div class="card">
       <div class="card-title">Shipping Address</div>
       <div class="shipping-address">
-        <?= htmlspecialchars($shipping['first_name'] ?? '') ?> <?= htmlspecialchars($shipping['last_name'] ?? '') ?><br>
-        <?= htmlspecialchars($shipping['address'] ?? '') ?><br>
-        <?= htmlspecialchars($shipping['city'] ?? '') ?>, <?= htmlspecialchars($shipping['state'] ?? '') ?> <?= htmlspecialchars($shipping['postal_code'] ?? '') ?><br>
-        <?= htmlspecialchars($shipping['phone'] ?? '') ?>
+       <?= htmlspecialchars($shipping['first_name'] ?? '') ?> <?= htmlspecialchars($shipping['last_name'] ?? '') ?><br>
+       <?= htmlspecialchars($shipping['address'] ?? '') ?><br>
+       <?= htmlspecialchars($shipping['city'] ?? '') ?>, <?= htmlspecialchars($shipping['barangay'] ?? '') ?> <?= htmlspecialchars($shipping['postal_code'] ?? '') ?><br>
+       <?= htmlspecialchars($shipping['phone'] ?? '') ?>
       </div>
     </div>
+
+        <?php
+            $lat = $shipping['latitude'] ?? '';
+            $lng = $shipping['longitude'] ?? '';
+            if ($lat && $lng):
+            ?>
+            <div class="card">
+              <div class="card-title">Delivery Location</div>
+              <div id="orderMap" style="height:250px; border-radius:12px; border:1px solid var(--border);"></div>
+            </div>
+
+            <!-- Load Leaflet CSS + JS (put these in <head> as well) -->
+            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+            <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+            <script>
+            window.addEventListener('DOMContentLoaded', function() {
+              var map = L.map('orderMap').setView([<?= $lat ?>, <?= $lng ?>], 17);
+              L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+              }).addTo(map);
+              L.marker([<?= $lat ?>, <?= $lng ?>]).addTo(map);
+            });
+            </script>
+        <?php endif; ?>
 
     <!-- Items -->
     <div class="card">

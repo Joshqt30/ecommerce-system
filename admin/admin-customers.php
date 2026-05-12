@@ -38,17 +38,18 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     // -- Get single customer details (for the side panel) --
     if ($action === 'get' && isset($_GET['id'])) {
         $id = intval($_GET['id']);
-      $res = pg_query_params($conn,
-        "SELECT u.id, u.username AS name, u.email, u.phone, u.address,
-                u.created_at, u.admin_notes,
-                COUNT(o.id) AS order_count,
-                COUNT(o.id) FILTER (WHERE o.status = 'delivered') AS completed_count
-        FROM users u
-        LEFT JOIN orders o ON o.user_id = u.id
-        WHERE u.id = $1
-        GROUP BY u.id",
-        [$id]
-    );
+        $res = pg_query_params($conn,
+          "SELECT u.id, u.username AS name, u.first_name, u.last_name,
+                  u.email, u.phone, u.address,
+                  u.created_at, u.admin_notes,
+                  COUNT(o.id) AS order_count,
+                  COUNT(o.id) FILTER (WHERE o.status = 'delivered') AS completed_count
+          FROM users u
+          LEFT JOIN orders o ON o.user_id = u.id
+          WHERE u.id = $1
+          GROUP BY u.id, u.first_name, u.last_name, u.username, u.email, u.phone, u.address, u.created_at, u.admin_notes",
+          [$id]
+      );
         $customer = pg_fetch_assoc($res);
         echo json_encode($customer ?: ['error' => 'Not found']);
         exit;
@@ -85,16 +86,18 @@ $totalPages = max(1, ceil($total / $perPage));
 
 // Fetch customers with order count
 $mainSQL = "
-    SELECT u.id, u.username AS name, u.email, u.phone,
+    SELECT u.id, u.username AS name, u.first_name, u.last_name,
+           u.email, u.phone,
            u.address, u.created_at, u.admin_notes,
            COUNT(o.id) AS order_count
     FROM users u
     LEFT JOIN orders o ON o.user_id = u.id
     $where
-    GROUP BY u.id
+    GROUP BY u.id, u.first_name, u.last_name, u.username, u.email, u.phone, u.address, u.created_at, u.admin_notes
     ORDER BY u.created_at DESC
     LIMIT \${$pi} OFFSET \$" . ($pi + 1) . "
 ";
+
 $queryParams = array_merge($params, [$perPage, $offset]);
 $result = pg_query_params($conn, $mainSQL, $queryParams);
 $customers = [];
@@ -519,26 +522,31 @@ $avatarUrl = !empty($avatarFile) ? '/ecommerce-system/imgs/avatars/' . htmlspeci
               <tr><td colspan="6"><div class="empty-state">No customers found.</div></td></tr>
             <?php else: ?>
               <?php foreach ($customers as $c):
-                $initial = strtoupper(substr($c['name'], 0, 1));
+                  // Build display name: first + last, fallback to username
+                  $fullName = trim(($c['first_name'] ?? '') . ' ' . ($c['last_name'] ?? ''));
+                  if ($fullName === '') {
+                      $fullName = $c['name'];   // username
+                  }
+                  $initial = strtoupper(mb_substr($fullName, 0, 1));
               ?>
               <tr onclick="openPanel(<?= $c['id'] ?>)" id="row-<?= $c['id'] ?>">
-                <td class="col-id">#<?= htmlspecialchars($c['id']) ?></td>
-                <td>
-                  <div class="name-cell">
-                    <div class="avatar"><?= $initial ?></div>
-                    <span><?= htmlspecialchars($c['name']) ?></span>
-                  </div>
-                </td>
-                <td class="col-email"><?= htmlspecialchars($c['email']) ?></td>
-                <td><?= htmlspecialchars($c['phone']) ?></td>
-                <td class="col-count"><?= $c['order_count'] ?></td>
-                <td>
-                  <div class="row-actions" onclick="event.stopPropagation()">
-                    <button class="action-btn" title="View details" onclick="openPanel(<?= $c['id'] ?>)">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                    </button>
-                  </div>
-                </td>
+                  <td class="col-id">#<?= htmlspecialchars($c['id']) ?></td>
+                  <td>
+                      <div class="name-cell">
+                          <div class="avatar"><?= htmlspecialchars($initial) ?></div>
+                          <span><?= htmlspecialchars($fullName) ?></span>
+                      </div>
+                  </td>
+                  <td class="col-email"><?= htmlspecialchars($c['email']) ?></td>
+                  <td><?= htmlspecialchars($c['phone'] ?? '—') ?></td>
+                  <td class="col-count"><?= $c['order_count'] ?></td>
+                  <td>
+                      <div class="row-actions" onclick="event.stopPropagation()">
+                          <button class="action-btn" title="View details" onclick="openPanel(<?= $c['id'] ?>)">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                          </button>
+                      </div>
+                  </td>
               </tr>
               <?php endforeach; ?>
             <?php endif; ?>
@@ -684,11 +692,13 @@ async function openPanel(id) {
   const row = document.getElementById('row-' + id);
   if (row) { row.classList.add('selected'); activeRowEl = row; }
 
-  const avEl = document.getElementById('pAvatar');
-  avEl.textContent = cust.name.charAt(0).toUpperCase();
-  document.getElementById('pName').textContent = cust.name;
-  document.getElementById('pId').textContent = '#' + cust.id;
-  document.getElementById('editName').value = cust.name || '';
+  // Full name
+  const fullName = [cust.first_name, cust.last_name].filter(Boolean).join(' ') || cust.name;
+
+  document.getElementById('pAvatar').textContent = fullName.charAt(0).toUpperCase();
+  document.getElementById('pName').textContent = fullName;
+  document.getElementById('editName').value = fullName;
+
   document.getElementById('editEmail').value = cust.email || '';
   document.getElementById('editPhone').value = cust.phone || '';
   document.getElementById('editAddress').value = cust.address || '';

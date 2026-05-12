@@ -19,11 +19,28 @@ if (!isset($_SESSION['user_id'])) {
 include '../config/db.php';
 
 $user_id = $_SESSION['user_id'];
+
+// Cancel order
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cancel_order'])) {
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+        die("CSRF validation failed");
+    }
+    $orderId = (int)($_POST['order_id'] ?? 0);
+    // Only cancel if order belongs to this user and is pending
+    $cancelStmt = pg_query_params($conn,
+        "UPDATE orders SET status = 'cancelled', cancelled_by = 'user' WHERE id = $1 AND user_id = $2 AND status = 'pending'",
+        [$orderId, $user_id]
+    );
+    // Redirect to orders tab with a message
+    header("Location: " . $_SERVER['PHP_SELF'] . "?tab=orders&cancelled=1");
+    exit;
+}
+
 $tab = $_GET['tab'] ?? 'profile';
 
 $editMode = isset($_GET['edit']) && $_GET['edit'] === '1';
 
-$userQuery = "SELECT username, email, phone, birth_date, address FROM users WHERE id = $1";
+$userQuery = "SELECT username, email, phone, birth_date, address, first_name, last_name FROM users WHERE id = $1";
 $userResult = pg_query_params($conn, $userQuery, [$user_id]);
 
 $profileUser = pg_fetch_assoc($userResult);
@@ -48,18 +65,22 @@ $_SESSION['profile_form_token'] = bin2hex(random_bytes(16));
     $phone    = trim($_POST['phone'] ?? '');
     $birth    = trim($_POST['birth_date'] ?? '');
     $address  = trim($_POST['address'] ?? '');
+    $first_name = trim($_POST['first_name'] ?? '');
+    $last_name = trim($_POST['last_name'] ?? '');
 
     $birth = ($birth === '') ? null : $birth;
 
     if (
-        $username === $profileUser['username'] &&
-        $email === $profileUser['email'] &&
-        $phone === $profileUser['phone'] &&
-        $birth === $profileUser['birth_date'] &&
-        $address === $profileUser['address']
+        $username   === $profileUser['username'] &&
+        $email      === $profileUser['email'] &&
+        $phone      === $profileUser['phone'] &&
+        $birth      === $profileUser['birth_date'] &&
+        $address    === $profileUser['address'] &&
+        $first_name === $profileUser['first_name'] &&
+        $last_name  === $profileUser['last_name']
     ) {
         $error = "No changes detected.";
-    } else {
+    }else {
     
     // Check if email changed – require current password
     $emailChanged = ($email !== $profileUser['email']);
@@ -91,8 +112,10 @@ $_SESSION['profile_form_token'] = bin2hex(random_bytes(16));
                 email = $2,
                 phone = $3,
                 birth_date = $4,
-                address = $5
-            WHERE id = $6
+                address = $5,
+                first_name = $6,
+                last_name = $7
+            WHERE id = $8
         ";
 
         $updateResult = pg_query_params($conn, $updateQuery, [
@@ -101,6 +124,8 @@ $_SESSION['profile_form_token'] = bin2hex(random_bytes(16));
             $phone,
             $birth,
             $address,
+            $first_name,
+            $last_name,
             $user_id
         ]);
 
@@ -348,6 +373,20 @@ if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_tok
                        <?= $editMode ? '' : 'readonly' ?> placeholder="First name">
             </div>
         </div>
+
+              <div class="form-grid">
+                <div class="field">
+                    <label class="field-label">First Name</label>
+                    <input class="field-input" type="text" name="first_name" value="<?= htmlspecialchars($profileUser['first_name'] ?? '') ?>"
+                        <?= $editMode ? '' : 'readonly' ?> placeholder="First name">
+                </div>
+                <div class="field">
+                    <label class="field-label">Last Name</label>
+                    <input class="field-input" type="text" name="last_name" value="<?= htmlspecialchars($profileUser['last_name'] ?? '') ?>"
+                        <?= $editMode ? '' : 'readonly' ?> placeholder="Last name">
+                </div>
+            </div>
+
         <div class="form-grid single">
             <div class="field">
                 <label class="field-label">Email Address</label>
@@ -394,6 +433,10 @@ if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_tok
         <div class="account-card <?= $tab === 'orders' ? 'active' : '' ?>">
             <h2 class="card-title">My Orders</h2>
             <p class="card-subtitle">Your recent order history.</p>
+
+            <?php if (isset($_GET['cancelled']) && $_GET['cancelled'] == '1'): ?>
+            <div class="success-message" style="color:green; margin-bottom:10px;">Order cancelled successfully.</div>
+        <?php endif; ?>
 
         <div class="order-filters">
             <a href="?tab=orders&order_status=all"       class="filter-tab <?= $orderStatus === 'all' ? 'active' : '' ?>">All (<?= $orderCounts['all'] ?>)</a>
@@ -446,6 +489,17 @@ if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_tok
                                     </div>
                                 <?php endforeach; ?>
                             </div>
+
+                            <?php if ($order['status'] === 'pending'): ?>
+                                <div style="text-align:right; margin-top:10px;">
+                                    <form method="POST" onsubmit="return confirm('Cancel this order?')">
+                                        <input type="hidden" name="cancel_order" value="1">
+                                        <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
+                                        <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
+                                        <button type="submit" class="btn-cancel-order">Cancel Order</button>
+                                    </form>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     <?php endforeach; ?>
                 </div>
